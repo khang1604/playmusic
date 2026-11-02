@@ -20,6 +20,22 @@ USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 echo "[*] Updating Ubuntu package lists..."
 apt-get update -y
 
+echo "[*] Detecting Ubuntu audio & library package versions..."
+# Ubuntu 24.04/26.04 64-bit time_t transition compatibility (libasound2t64 vs libasound2)
+if apt-cache show libasound2t64 &>/dev/null; then
+  ASOUND_PKG="libasound2t64"
+else
+  ASOUND_PKG="libasound2"
+fi
+
+if apt-cache show libfuse2t64 &>/dev/null; then
+  FUSE2_PKG="libfuse2t64"
+elif apt-cache show libfuse2 &>/dev/null; then
+  FUSE2_PKG="libfuse2"
+else
+  FUSE2_PKG=""
+fi
+
 echo "[*] Installing required audio, graphical & system libraries..."
 apt-get install -y \
   build-essential \
@@ -28,7 +44,7 @@ apt-get install -y \
   file \
   libssl-dev \
   libasound2-dev \
-  libasound2 \
+  "$ASOUND_PKG" \
   pipewire-audio \
   pipewire-pulse \
   libwebkit2gtk-4.1-dev \
@@ -38,8 +54,8 @@ apt-get install -y \
   libgtk-3-dev \
   libayatana-appindicator3-dev \
   librsvg2-dev \
-  libfuse2t64 \
-  fuse3
+  fuse3 \
+  $FUSE2_PKG
 
 echo "[*] Ensuring user '${REAL_USER}' is in the 'audio' group..."
 usermod -aG audio "$REAL_USER" || true
