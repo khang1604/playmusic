@@ -204,32 +204,36 @@ export const App: React.FC = () => {
 
   // Save Event Preset to JSON file
   const handleSavePreset = () => {
-    const preset = {
-      version: "1.0.0" as const,
-      eventName,
-      createdAt: new Date().toISOString(),
-      slots,
-      masterVolume,
-      fadeDurationMs
-    };
+    try {
+      const cleanEventName = eventName.trim() || "PlayMusic Show";
+      const presetData = {
+        version: "1.0.0",
+        eventName: cleanEventName,
+        createdAt: new Date().toISOString(),
+        slots,
+        masterVolume,
+        fadeDurationMs
+      };
 
-    const validated = EventPresetSchema.safeParse(preset);
-    if (!validated.success) {
-      logger.error("Preset validation failed", validated.error.format());
-      alert("Validation failed before saving preset.");
-      return;
+      const validated = EventPresetSchema.parse(presetData);
+
+      const blob = new Blob([JSON.stringify(validated, null, 2)], {
+        type: "application/json"
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeName = cleanEventName.toLowerCase().replace(/[^a-z0-9]/gi, "_");
+      a.download = `${safeName || "show"}_preset.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      logger.info(`Preset saved: ${a.download}`);
+    } catch (err) {
+      logger.error("Preset saving error", err);
+      alert("Không thể lưu cấu hình preset. Vui lòng thử lại!");
     }
-
-    const blob = new Blob([JSON.stringify(preset, null, 2)], {
-      type: "application/json"
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${eventName.toLowerCase().replace(/[^a-z0-9]/g, "_")}_preset.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    logger.info(`Preset saved: ${a.download}`);
   };
 
   // Load Event Preset from JSON file

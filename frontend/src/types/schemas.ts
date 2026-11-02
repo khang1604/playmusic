@@ -17,21 +17,21 @@ export const StageColorEnum = z.enum([
 export type StageColor = z.infer<typeof StageColorEnum>;
 
 /**
- * Single Deck Slot Configuration Schema
+ * Single Deck Slot Configuration Schema (Robust & Permissive for Long Song Titles)
  */
 export const DeckSlotSchema = z.object({
   id: z.number().int().min(1).max(30),
-  keymap: z.string().min(1).max(10), // e.g. "1", "Q", "A"
-  label: z.string().max(40).default("Empty Slot"),
+  keymap: z.string().default(""),
+  label: z.string().default("Empty Slot"),
   fileName: z.string().nullable().default(null),
   filePath: z.string().nullable().default(null),
   fileUrl: z.string().nullable().default(null),
-  durationSeconds: z.number().nonnegative().default(0),
-  cueInSeconds: z.number().nonnegative().default(0), // numerical start point
-  volume: z.number().min(0).max(1).default(1.0), // 0.0 - 1.0
-  isMuted: z.boolean().default(false), // Individual Mute
-  isLooping: z.boolean().default(false), // Loop vs One-shot
-  color: StageColorEnum.default("slate")
+  durationSeconds: z.number().default(0),
+  cueInSeconds: z.number().default(0),
+  volume: z.number().default(1.0),
+  isMuted: z.boolean().default(false),
+  isLooping: z.boolean().default(false),
+  color: StageColorEnum.catch("slate").default("slate")
 });
 
 export type DeckSlotConfig = z.infer<typeof DeckSlotSchema>;
@@ -40,12 +40,12 @@ export type DeckSlotConfig = z.infer<typeof DeckSlotSchema>;
  * Event Preset Workspace Schema (JSON export/import)
  */
 export const EventPresetSchema = z.object({
-  version: z.literal("1.0.0"),
-  eventName: z.string().min(1).max(100),
-  createdAt: z.string().datetime(),
-  slots: z.array(DeckSlotSchema).length(30),
-  masterVolume: z.number().min(0).max(1).default(1.0),
-  fadeDurationMs: z.number().min(100).max(10000).default(1000)
+  version: z.string().default("1.0.0"),
+  eventName: z.string().default("PlayMusic Show"),
+  createdAt: z.string().default(() => new Date().toISOString()),
+  slots: z.array(DeckSlotSchema),
+  masterVolume: z.number().default(1.0),
+  fadeDurationMs: z.number().default(1000)
 });
 
 export type EventPreset = z.infer<typeof EventPresetSchema>;

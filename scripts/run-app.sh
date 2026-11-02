@@ -18,3 +18,4 @@ if [ -f "$HOME/.cargo/env" ]; then
 fi
 
 cargo tauri dev
+
