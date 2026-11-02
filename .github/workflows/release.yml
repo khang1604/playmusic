@@ -60,4 +60,3 @@ jobs:
           releaseBody: 'PlayMusic Studio - Live Event Audio Workstation for Windows and Ubuntu Linux.'
           releaseDraft: false
           prerelease: false
-          args: --ignore-version-mismatches
