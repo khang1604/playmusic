@@ -38,3 +38,4 @@ echo  NSIS .exe: src-tauri\target\release\bundle\nsis\
 echo  MSI:      src-tauri\target\release\bundle\msi\
 echo ============================================================
 pause
+

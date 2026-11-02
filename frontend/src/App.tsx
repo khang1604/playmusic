@@ -202,8 +202,8 @@ export const App: React.FC = () => {
     }
   };
 
-  // Save Event Preset to JSON file
-  const handleSavePreset = () => {
+  // Save Event Preset to JSON file (Supports both Tauri Desktop & Web Browser)
+  const handleSavePreset = async () => {
     try {
       const cleanEventName = eventName.trim() || "PlayMusic Show";
       const presetData = {
@@ -216,20 +216,38 @@ export const App: React.FC = () => {
       };
 
       const validated = EventPresetSchema.parse(presetData);
+      const jsonContent = JSON.stringify(validated, null, 2);
+      const safeName = cleanEventName.toLowerCase().replace(/[^a-z0-9]/gi, "_");
+      const filename = `${safeName || "show"}_preset.json`;
 
-      const blob = new Blob([JSON.stringify(validated, null, 2)], {
-        type: "application/json"
-      });
+      // Check if running inside native Tauri Desktop App
+      const isTauri = typeof window !== "undefined" && Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+      if (isTauri) {
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          const savedPath = await invoke<string>("save_preset_file", {
+            filename,
+            content: jsonContent
+          });
+          alert(`Đã lưu file preset sự kiện thành công tại:\n${savedPath}`);
+          logger.info(`Preset saved via Tauri to: ${savedPath}`);
+          return;
+        } catch (tauriErr) {
+          logger.warn("Tauri native save failed, trying browser download fallback", tauriErr);
+        }
+      }
+
+      // Browser Fallback (Blob anchor download)
+      const blob = new Blob([jsonContent], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const safeName = cleanEventName.toLowerCase().replace(/[^a-z0-9]/gi, "_");
-      a.download = `${safeName || "show"}_preset.json`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 2000);
-      logger.info(`Preset saved: ${a.download}`);
+      logger.info(`Preset saved: ${filename}`);
     } catch (err) {
       logger.error("Preset saving error", err);
       alert("Không thể lưu cấu hình preset. Vui lòng thử lại!");
