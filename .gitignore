@@ -1,0 +1,53 @@
+# ==========================================
+# PLAYMUSIC - PRODUCTION GITIGNORE
+# ==========================================
+
+# Local Developer Scratch & Notes
+.local/
+.local/scratch/
+.local/docs/
+
+# Secrets & Sensitive Environment Files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+id_rsa*
+
+# Dependencies
+node_modules/
+.pnpm-store/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Build Outputs & Bundles
+dist/
+build/
+out/
+.next/
+coverage/
+.turbo/
+target/
+src-tauri/target/
+*.tsbuildinfo
+
+# Agent Knowledge & Cache Artifacts
+graphify-out/
+.system_generated/
+.task-observer/
+*.log
+
+# OS & Editor Artifacts
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo

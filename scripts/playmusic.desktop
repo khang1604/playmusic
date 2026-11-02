@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PlayMusic Studio
+Comment=Live Event Audio Cue & Polyphonic Soundboard Workstation
+Exec=playmusic %U
+Icon=playmusic
+Terminal=false
+Categories=AudioVideo;Audio;Player;Mixer;
+Keywords=audio;soundboard;cue;event;music;player;
+StartupNotify=true
+StartupWMClass=playmusic
+MimeType=audio/mpeg;audio/wav;audio/ogg;audio/flac;audio/mp4;audio/aac;
