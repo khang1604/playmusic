@@ -191,11 +191,29 @@ export const App: React.FC = () => {
     audioEngine.setMasterVolume(vol);
   };
 
+  // Sync engine parameters on initial mount
+  useEffect(() => {
+    slots.forEach((s) => {
+      audioEngine.setCueIn(s.id, s.cueInSeconds);
+      audioEngine.setVolume(s.id, s.volume);
+      audioEngine.setLoop(s.id, s.isLooping);
+    });
+  }, []);
+
   // Update slot configuration
   const handleUpdateSlot = (slotId: number, updated: Partial<DeckSlotConfig>) => {
     setSlots((prev) =>
       prev.map((s) => (s.id === slotId ? { ...s, ...updated } : s))
     );
+    if (updated.cueInSeconds !== undefined) {
+      audioEngine.setCueIn(slotId, updated.cueInSeconds);
+    }
+    if (updated.volume !== undefined) {
+      audioEngine.setVolume(slotId, updated.volume);
+    }
+    if (updated.isLooping !== undefined) {
+      audioEngine.setLoop(slotId, updated.isLooping);
+    }
   };
 
   // Emergency Panic Stop All

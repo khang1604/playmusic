@@ -79,7 +79,7 @@ class AudioEngine {
       const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
       channel.buffer = decodedBuffer;
       channel.status = "idle";
-      channel.pausedAt = 0;
+      channel.pausedAt = channel.cueInSeconds;
       this.notify(channel);
       logger.info(`Loaded audio file for slot ${slotId}`, {
         name: file.name,
@@ -104,7 +104,7 @@ class AudioEngine {
       const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
       channel.buffer = decodedBuffer;
       channel.status = "idle";
-      channel.pausedAt = 0;
+      channel.pausedAt = channel.cueInSeconds;
       this.notify(channel);
       logger.info(`Decoded raw audio buffer for slot ${slotId}`, {
         name: fileName,
@@ -141,13 +141,21 @@ class AudioEngine {
     source.loop = channel.isLooping;
     source.connect(channel.gainNode);
 
-    const offset = channel.pausedAt > 0 ? channel.pausedAt : channel.cueInSeconds;
+    // If resuming from paused state, use pausedAt. If starting fresh (idle), use cueInSeconds.
+    let offset = channel.status === "paused" && channel.pausedAt > 0
+      ? channel.pausedAt
+      : channel.cueInSeconds;
+
+    if (channel.buffer && offset >= channel.buffer.duration) {
+      offset = 0;
+    }
+
     const duration = channel.buffer.duration;
 
     source.onended = () => {
       if (channel.status === "playing" && !channel.isLooping) {
         channel.status = "idle";
-        channel.pausedAt = 0;
+        channel.pausedAt = channel.cueInSeconds;
         this.notify(channel);
       }
     };
@@ -196,7 +204,7 @@ class AudioEngine {
     const channel = this.getChannel(slotId);
     if (!channel.source) {
       channel.status = "idle";
-      channel.pausedAt = 0;
+      channel.pausedAt = channel.cueInSeconds;
       this.notify(channel);
       return;
     }
@@ -211,7 +219,7 @@ class AudioEngine {
           channel.source?.disconnect();
         } catch { /* ignored */ }
         channel.status = "idle";
-        channel.pausedAt = 0;
+        channel.pausedAt = channel.cueInSeconds;
         this.updateGain(channel);
         this.notify(channel);
       }, fadeMs);
@@ -221,7 +229,7 @@ class AudioEngine {
         channel.source.disconnect();
       } catch { /* ignored */ }
       channel.status = "idle";
-      channel.pausedAt = 0;
+      channel.pausedAt = channel.cueInSeconds;
       this.updateGain(channel);
       this.notify(channel);
     }
@@ -341,7 +349,8 @@ class AudioEngine {
   }
 
   private getRuntimeState(channel: Channel): DeckRuntimeState {
-    let currentTime = channel.pausedAt;
+    let currentTime =
+      channel.status === "idle" ? channel.cueInSeconds : channel.pausedAt;
     let remainingTime = 0;
     if (channel.buffer) {
       const dur = channel.buffer.duration;

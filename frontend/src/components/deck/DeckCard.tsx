@@ -276,9 +276,23 @@ export const DeckCard: React.FC<DeckCardProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-1 text-[10px] text-slate-400" title="Start playback from this second">
+            <div
+              className="flex items-center gap-1 text-[10px] text-slate-400"
+              title="Điểm bắt đầu phát (giây) - Bấm phím sẽ phát ngay từ giây này"
+            >
               <span>Cue:</span>
-              <span className="text-blue-400 font-bold">{config.cueInSeconds}s</span>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={config.cueInSeconds || 0}
+                onChange={(e) => {
+                  const val = Math.max(0, parseFloat(e.target.value) || 0);
+                  onUpdateConfig({ cueInSeconds: val });
+                }}
+                className="w-11 px-1 py-0.5 bg-slate-900 border border-slate-700 rounded text-blue-400 font-bold font-mono text-center focus:border-blue-500 focus:outline-none text-[10px]"
+              />
+              <span>s</span>
             </div>
           </div>
 
