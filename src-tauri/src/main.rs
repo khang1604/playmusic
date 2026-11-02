@@ -20,10 +20,15 @@ fn save_preset_file(filename: String, content: String) -> Result<String, String>
     Ok(file_path.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+fn read_audio_file(file_path: String) -> Result<Vec<u8>, String> {
+    fs::read(&file_path).map_err(|e| format!("Failed to read file {}: {}", file_path, e))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![save_preset_file])
+        .invoke_handler(tauri::generate_handler![save_preset_file, read_audio_file])
         .run(tauri::generate_context!())
         .expect("error while running PlayMusic application");
 }

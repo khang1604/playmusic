@@ -94,6 +94,31 @@ class AudioEngine {
     }
   }
 
+  public async loadAudioBuffer(slotId: number, arrayBuffer: ArrayBuffer, fileName: string): Promise<AudioBuffer> {
+    const ctx = this.initContext();
+    const channel = this.getChannel(slotId);
+    channel.status = "loading";
+    this.notify(channel);
+
+    try {
+      const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
+      channel.buffer = decodedBuffer;
+      channel.status = "idle";
+      channel.pausedAt = 0;
+      this.notify(channel);
+      logger.info(`Decoded raw audio buffer for slot ${slotId}`, {
+        name: fileName,
+        duration: decodedBuffer.duration
+      });
+      return decodedBuffer;
+    } catch (err) {
+      channel.status = "idle";
+      this.notify(channel);
+      logger.error(`Failed to decode raw audio for slot ${slotId}`, err);
+      throw err;
+    }
+  }
+
   public play(slotId: number) {
     const ctx = this.initContext();
     const channel = this.getChannel(slotId);
