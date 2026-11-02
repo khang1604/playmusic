@@ -151,6 +151,15 @@ export const DeckCard: React.FC<DeckCardProps> = ({
     onUpdateConfig({ volume: vol });
   };
 
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!runtime.audioBuffer) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+    const targetSeconds = percentage * runtime.audioBuffer.duration;
+    audioEngine.seek(config.id, targetSeconds);
+  };
+
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
@@ -253,22 +262,56 @@ export const DeckCard: React.FC<DeckCardProps> = ({
           </div>
         </div>
 
-        {/* Middle Row: Progress Meter & Numerical Cue-in Point */}
-        <div className="relative z-10 flex items-center justify-between text-[11px] bg-slate-950/70 px-2 py-1.5 rounded-lg border border-slate-800/80 my-1 font-mono">
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-3 h-3 text-slate-500" />
-            <span className={isPlaying ? "text-emerald-400 font-bold" : "text-slate-300"}>
-              {formatTime(runtime.currentTime)}
-            </span>
-            <span className="text-slate-600">/</span>
-            <span className="text-slate-400">
-              -{formatTime(runtime.remainingTime)}
-            </span>
+        {/* Middle Row: Progress Meter, Numerical Cue-in Point & Interactive Seek Scrubber Bar */}
+        <div className="relative z-10 bg-slate-950/70 p-2 rounded-lg border border-slate-800/80 my-1 font-mono">
+          <div className="flex items-center justify-between text-[11px] mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-slate-500" />
+              <span className={isPlaying ? "text-emerald-400 font-bold" : "text-slate-300"}>
+                {formatTime(runtime.currentTime)}
+              </span>
+              <span className="text-slate-600">/</span>
+              <span className="text-slate-400">
+                -{formatTime(runtime.remainingTime)}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 text-[10px] text-slate-400" title="Start playback from this second">
+              <span>Cue:</span>
+              <span className="text-blue-400 font-bold">{config.cueInSeconds}s</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1 text-[10px] text-slate-400" title="Start playback from this second">
-            <span>Cue:</span>
-            <span className="text-blue-400 font-bold">{config.cueInSeconds}s</span>
+          {/* Interactive Seek Bar (Tua nhạc bằng chuột) */}
+          <div
+            onClick={handleSeek}
+            title={runtime.audioBuffer ? "Click hoặc kéo chuột để tua nhanh/chậm" : "Chưa có file audio"}
+            className={`group/bar relative w-full h-2 rounded-full overflow-hidden transition-all duration-150 ${
+              runtime.audioBuffer
+                ? "bg-slate-800 cursor-pointer hover:h-2.5"
+                : "bg-slate-900/60 cursor-not-allowed opacity-40"
+            }`}
+          >
+            {/* Filled Progress Bar */}
+            <div
+              className={`h-full rounded-full transition-[width] duration-75 ${
+                isPlaying
+                  ? "bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 shadow-sm shadow-emerald-500/50"
+                  : "bg-blue-600/80"
+              }`}
+              style={{ width: `${progressPercent}%` }}
+            />
+
+            {/* Cue Point Marker */}
+            {runtime.audioBuffer && config.cueInSeconds > 0 && (
+              <div
+                className="absolute top-0 bottom-0 w-1 bg-amber-400 shadow-sm"
+                style={{
+                  left: `${Math.min(100, (config.cueInSeconds / runtime.audioBuffer.duration) * 100)}%`
+                }}
+                title={`Cue Point: ${config.cueInSeconds}s`}
+              />
+            )}
           </div>
         </div>
 

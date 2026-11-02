@@ -202,6 +202,47 @@ class AudioEngine {
     }
   }
 
+  public seek(slotId: number, targetTimeSeconds: number) {
+    const ctx = this.initContext();
+    const channel = this.getChannel(slotId);
+    if (!channel.buffer) return;
+
+    const clampedTime = Math.max(0, Math.min(targetTimeSeconds, channel.buffer.duration));
+    channel.pausedAt = clampedTime;
+
+    if (channel.status === "playing") {
+      if (channel.source) {
+        try {
+          channel.source.onended = null;
+          channel.source.stop();
+          channel.source.disconnect();
+        } catch { /* ignored */ }
+      }
+
+      const source = ctx.createBufferSource();
+      source.buffer = channel.buffer;
+      source.loop = channel.isLooping;
+      source.connect(channel.gainNode);
+
+      source.onended = () => {
+        if (channel.status === "playing" && !channel.isLooping) {
+          channel.status = "idle";
+          channel.pausedAt = 0;
+          this.notify(channel);
+        }
+      };
+
+      source.start(0, clampedTime);
+      channel.source = source;
+      channel.startedAt = ctx.currentTime - clampedTime;
+      channel.status = "playing";
+      this.updateGain(channel);
+    }
+
+    this.notify(channel);
+    logger.debug(`Slot ${slotId} seeked to ${clampedTime.toFixed(2)}s`);
+  }
+
   public togglePlayPause(slotId: number, fadeMs = 0) {
     const channel = this.getChannel(slotId);
     if (channel.status === "playing") {

@@ -5,7 +5,6 @@ import {
   Sliders,
   FolderOpen,
   Save,
-  Radio,
   FolderPlus
 } from "lucide-react";
 
@@ -43,10 +42,12 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
     <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-slate-950 border-b border-slate-800 shadow-xl">
       {/* Brand & Event Title */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-blue-900/40">
-            <Radio className="w-4 h-4 text-white animate-pulse" />
-          </div>
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/logo.svg"
+            alt="PlayMusic Studio Logo"
+            className="w-8 h-8 rounded-lg shadow-lg shadow-blue-500/20 hover:scale-105 transition-transform"
+          />
           <div>
             <h1 className="text-sm font-black tracking-wider uppercase bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
               PlayMusic Studio
