@@ -15,9 +15,7 @@ jobs:
       matrix:
         include:
           - platform: 'ubuntu-24.04'
-            args: ''
           - platform: 'windows-latest'
-            args: ''
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout Repository
@@ -46,9 +44,11 @@ jobs:
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Frontend Dependencies
+      - name: Install Frontend Dependencies & Build Web Bundle
         working-directory: ./frontend
-        run: npm ci || npm install
+        run: |
+          npm install
+          npm run build
 
       - name: Build Tauri Desktop Installers (.deb, .AppImage, .exe, .msi)
         uses: tauri-apps/tauri-action@v0
@@ -60,5 +60,4 @@ jobs:
           releaseBody: 'PlayMusic Studio - Live Event Audio Workstation for Windows and Ubuntu Linux.'
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
-
+          args: --ignore-version-mismatches
