@@ -43,7 +43,7 @@ if ! cargo tauri --version &> /dev/null; then
 fi
 
 # Build packages (.deb, .AppImage)
-cargo tauri build
+cargo tauri build --ignore-version-mismatches || cargo tauri build
 
 echo "============================================================"
 echo " [SUCCESS] Linux Build Artifacts Generated:"
