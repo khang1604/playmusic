@@ -62,7 +62,18 @@ apt-get install -y \
 echo "[*] Ensuring user '${REAL_USER}' is in the 'audio' group..."
 usermod -aG audio "$REAL_USER" || true
 
-# Register Desktop Entry if .desktop exists
+# Register Desktop Entry & Application Icons if they exist
+LOGO_SRC="$(dirname "$0")/../frontend/public/logo.svg"
+if [ -f "$LOGO_SRC" ]; then
+  echo "[*] Installing system application icons..."
+  cp "$LOGO_SRC" /usr/share/pixmaps/playmusic.svg || true
+  cp "$LOGO_SRC" /usr/share/pixmaps/play-music.svg || true
+  mkdir -p /usr/share/icons/hicolor/scalable/apps
+  cp "$LOGO_SRC" /usr/share/icons/hicolor/scalable/apps/playmusic.svg || true
+  cp "$LOGO_SRC" /usr/share/icons/hicolor/scalable/apps/play-music.svg || true
+  gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+fi
+
 DESKTOP_SRC="$(dirname "$0")/playmusic.desktop"
 if [ -f "$DESKTOP_SRC" ]; then
   echo "[*] Installing desktop shortcut..."

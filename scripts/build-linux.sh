@@ -42,6 +42,12 @@ if ! cargo tauri --version &> /dev/null; then
   cargo install tauri-cli --version "^2.0.0" --locked
 fi
 
+# Generate high-resolution desktop application icons from logo.svg
+if [ -f "$PROJECT_ROOT/frontend/public/logo.svg" ]; then
+  echo "[*] Generating high-resolution icons from logo.svg..."
+  cargo tauri icon "$PROJECT_ROOT/frontend/public/logo.svg" || true
+fi
+
 # Build packages (.deb, .AppImage)
 cargo tauri build --ignore-version-mismatches || cargo tauri build
 
