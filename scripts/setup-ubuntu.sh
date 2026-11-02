@@ -42,6 +42,8 @@ apt-get install -y \
   curl \
   wget \
   file \
+  nodejs \
+  npm \
   libssl-dev \
   libasound2-dev \
   "$ASOUND_PKG" \

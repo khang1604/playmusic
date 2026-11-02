@@ -11,12 +11,22 @@ echo "============================================================"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-echo "[1/3] Building Frontend Web Bundle..."
+echo "[1/3] Checking Node.js & npm..."
+if ! command -v npm &> /dev/null; then
+  echo "[!] npm not found. Installing nodejs and npm via apt..."
+  if [ "$EUID" -eq 0 ]; then
+    apt-get update && apt-get install -y nodejs npm
+  else
+    sudo apt-get update && sudo apt-get install -y nodejs npm
+  fi
+fi
+
+echo "[2/3] Building Frontend Web Bundle..."
 cd "$PROJECT_ROOT/frontend"
 npm install
 npm run build
 
-echo "[2/3] Building Tauri Native Desktop Application..."
+echo "[3/3] Building Tauri Native Desktop Application..."
 cd "$PROJECT_ROOT"
 
 # Check if cargo is installed
