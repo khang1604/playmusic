@@ -26,6 +26,20 @@ Unlike conventional media players (e.g., Windows Media Player) that restrict use
 
 ---
 
+## 🪟 Installation & Building on Windows
+
+### Option 1: Run Installer (.exe or .msi)
+Download the latest `PlayMusic_x64-setup.exe` or `PlayMusic_x64.msi` from GitHub Releases and click install.
+
+### Option 2: Build from Source on Windows
+Double-click `scripts\build-windows.bat` or run:
+```powershell
+.\scripts\build-windows.bat
+```
+The installer will be generated in `src-tauri\target\release\bundle\nsis\`.
+
+---
+
 ## 🚀 Installation on Ubuntu Linux
 
 ### Option 1: Official Debian Package (`.deb`)
