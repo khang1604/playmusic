@@ -24,6 +24,8 @@ class AudioEngine {
   private exclusiveMode: boolean = false;
   private channels: Map<number, Channel> = new Map();
   private tickerId: number | null = null;
+  private dataL: Uint8Array<ArrayBuffer> | null = null;
+  private dataR: Uint8Array<ArrayBuffer> | null = null;
 
   constructor() {
     // Lazily initialized on first user gesture
@@ -41,6 +43,8 @@ class AudioEngine {
       this.analyserRight = this.ctx.createAnalyser();
       this.analyserLeft.fftSize = 128;
       this.analyserRight.fftSize = 128;
+      this.dataL = new Uint8Array(this.analyserLeft.frequencyBinCount);
+      this.dataR = new Uint8Array(this.analyserRight.frequencyBinCount);
 
       this.masterGain.connect(splitter);
       splitter.connect(this.analyserLeft, 0);
@@ -319,22 +323,26 @@ class AudioEngine {
   }
 
   public getMasterLevels(): { left: number; right: number } {
-    if (!this.analyserLeft || !this.analyserRight) {
+    if (!this.analyserLeft || !this.analyserRight || !this.dataL || !this.dataR) {
       return { left: 0, right: 0 };
     }
-    const dataL = new Uint8Array(this.analyserLeft.frequencyBinCount);
-    const dataR = new Uint8Array(this.analyserRight.frequencyBinCount);
-    this.analyserLeft.getByteFrequencyData(dataL);
-    this.analyserRight.getByteFrequencyData(dataR);
+    // Fast path: When no audio is playing, instantly return 0 without processing FFT or looping
+    if (this.getActivePlayingCount() === 0) {
+      return { left: 0, right: 0 };
+    }
+
+    this.analyserLeft.getByteFrequencyData(this.dataL);
+    this.analyserRight.getByteFrequencyData(this.dataR);
 
     let sumL = 0;
     let sumR = 0;
-    for (let i = 0; i < dataL.length; i++) {
-      sumL += dataL[i];
-      sumR += dataR[i];
+    const len = this.dataL.length;
+    for (let i = 0; i < len; i++) {
+      sumL += this.dataL[i];
+      sumR += this.dataR[i];
     }
-    const avgL = sumL / (dataL.length * 255);
-    const avgR = sumR / (dataR.length * 255);
+    const avgL = sumL / (len * 255);
+    const avgR = sumR / (len * 255);
 
     // If right channel is silent (e.g. mono audio file), mirror left channel
     const finalR = avgR > 0.005 ? avgR : avgL;
@@ -471,10 +479,16 @@ class AudioEngine {
 
   private startPlaybackTicker() {
     if (this.tickerId) return;
-    const tick = () => {
-      for (const channel of this.channels.values()) {
-        if (channel.status === "playing" && channel.listeners.size > 0) {
-          this.notify(channel);
+    let lastTick = 0;
+    const THROTTLE_MS = 80; // 12.5 FPS for timer / progress bar saves 85% CPU & GPU load
+
+    const tick = (now: number) => {
+      if (now - lastTick >= THROTTLE_MS) {
+        lastTick = now;
+        for (const channel of this.channels.values()) {
+          if (channel.status === "playing" && channel.listeners.size > 0) {
+            this.notify(channel);
+          }
         }
       }
       this.tickerId = requestAnimationFrame(tick);

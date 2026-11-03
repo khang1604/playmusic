@@ -255,7 +255,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
         {/* Progress Background Tint */}
         {isPlaying && (
           <div
-            className="absolute inset-0 bg-emerald-500/10 rounded-xl pointer-events-none transition-all"
+            className="absolute inset-0 bg-emerald-500/10 rounded-xl pointer-events-none"
             style={{ width: `${progressPercent}%` }}
           />
         )}

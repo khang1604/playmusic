@@ -42,6 +42,35 @@ const DB_SCALE_MARKS = [
   { label: "-∞", color: "text-slate-500" }
 ];
 
+/**
+ * Isolated Ultra-Efficient VU Meter Channel Component
+ * Crisp flat styling without heavy GPU Gaussian blur passes
+ */
+const VUMeterBar = React.memo(({ litCount, label }: { litCount: number; label: string }) => {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[9px] font-mono font-bold text-slate-300">{label}</span>
+      <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between shadow-inner">
+        {Array.from({ length: TOTAL_SEGMENTS }, (_, idx) => {
+          const isLit = idx < litCount;
+          let color = "bg-emerald-400";
+          if (idx >= 12) color = "bg-rose-500";
+          else if (idx >= 9) color = "bg-amber-400";
+
+          return (
+            <div
+              key={idx}
+              className={`w-full h-1.5 rounded-xs ${
+                isLit ? color : "bg-slate-900/60 opacity-20"
+              }`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export const MasterConsole: React.FC<MasterConsoleProps> = ({
   masterVolume,
   onMasterVolumeChange,
@@ -62,35 +91,50 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
   const batchAudioInputRef = useRef<HTMLInputElement>(null);
   const faderRef = useRef<HTMLDivElement>(null);
 
-  // Real-time VU Meter audio level state
-  const [meterLevels, setMeterLevels] = useState<{ left: number; right: number }>({
+  // Real-time VU Meter audio level state (throttled to 30 FPS, sleeps when idle)
+  const [meterLeds, setMeterLeds] = useState<{ left: number; right: number }>({
     left: 0,
     right: 0
   });
 
-  // Animation frame loop for smooth 60fps VU meter
   useEffect(() => {
     let animId: number;
     let currentL = 0;
     let currentR = 0;
+    let lastTick = 0;
+    const FRAME_INTERVAL = 33; // ~30 FPS cuts GPU/CPU load by more than half
 
-    const tick = () => {
-      const raw = audioEngine.getMasterLevels();
-      // Smooth attack and decay
-      currentL = raw.left > currentL ? raw.left : currentL * 0.82;
-      currentR = raw.right > currentR ? raw.right : currentR * 0.82;
+    const tick = (now: number) => {
+      // Idle optimization: when no audio is playing and decay is complete, halt animation loop!
+      if (activeCount === 0 && currentL < 0.01 && currentR < 0.01) {
+        if (currentL !== 0 || currentR !== 0) {
+          currentL = 0;
+          currentR = 0;
+          setMeterLeds({ left: 0, right: 0 });
+        }
+        return;
+      }
 
-      setMeterLevels({
-        left: Math.max(0, currentL),
-        right: Math.max(0, currentR)
-      });
+      if (now - lastTick >= FRAME_INTERVAL) {
+        lastTick = now;
+        const raw = audioEngine.getMasterLevels();
+        currentL = raw.left > currentL ? raw.left : currentL * 0.82;
+        currentR = raw.right > currentR ? raw.right : currentR * 0.82;
+
+        const nextL = Math.round(Math.max(0, currentL) * TOTAL_SEGMENTS);
+        const nextR = Math.round(Math.max(0, currentR) * TOTAL_SEGMENTS);
+
+        setMeterLeds((prev) =>
+          prev.left === nextL && prev.right === nextR ? prev : { left: nextL, right: nextR }
+        );
+      }
 
       animId = requestAnimationFrame(tick);
     };
 
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, []);
+  }, [activeCount]);
 
   const handleBatchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -127,9 +171,6 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
       updateFaderFromY(e.clientY);
     }
   };
-
-  const leftLitCount = Math.round(meterLevels.left * TOTAL_SEGMENTS);
-  const rightLitCount = Math.round(meterLevels.right * TOTAL_SEGMENTS);
 
   return (
     <aside className="w-72 bg-slate-950 border-l border-slate-800/90 flex flex-col justify-between p-3.5 shadow-2xl select-none flex-shrink-0 overflow-y-auto">
@@ -249,26 +290,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             </div>
 
             {/* Left Channel VU Meter */}
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-[9px] font-mono font-bold text-slate-300">L</span>
-              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between shadow-inner">
-                {Array.from({ length: TOTAL_SEGMENTS }, (_, idx) => {
-                  const isLit = idx < leftLitCount;
-                  let color = "bg-emerald-400 shadow-xs shadow-emerald-400";
-                  if (idx >= 12) color = "bg-rose-500 shadow-xs shadow-rose-500";
-                  else if (idx >= 9) color = "bg-amber-400 shadow-xs shadow-amber-400";
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`w-full h-1.5 rounded-xs transition-opacity duration-75 ${
-                        isLit ? color : "bg-slate-800/40 opacity-25"
-                      }`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
+            <VUMeterBar litCount={meterLeds.left} label="L" />
 
             {/* Custom Cross-Platform Studio Hardware Vertical Fader */}
             <div
@@ -313,26 +335,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             </div>
 
             {/* Right Channel VU Meter */}
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-[9px] font-mono font-bold text-slate-300">R</span>
-              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between shadow-inner">
-                {Array.from({ length: TOTAL_SEGMENTS }, (_, idx) => {
-                  const isLit = idx < rightLitCount;
-                  let color = "bg-emerald-400 shadow-xs shadow-emerald-400";
-                  if (idx >= 12) color = "bg-rose-500 shadow-xs shadow-rose-500";
-                  else if (idx >= 9) color = "bg-amber-400 shadow-xs shadow-amber-400";
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`w-full h-1.5 rounded-xs transition-opacity duration-75 ${
-                        isLit ? color : "bg-slate-800/40 opacity-25"
-                      }`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
+            <VUMeterBar litCount={meterLeds.right} label="R" />
 
             {/* Right dB Scale */}
             <div className="flex flex-col items-start gap-1 select-none pointer-events-none">
