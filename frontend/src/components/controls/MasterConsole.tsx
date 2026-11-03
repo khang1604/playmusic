@@ -31,6 +31,15 @@ interface MasterConsoleProps {
 
 const TOTAL_SEGMENTS = 14;
 
+const DB_SCALE_MARKS = [
+  { label: "+3", color: "text-rose-400" },
+  { label: "0dB", color: "text-amber-400" },
+  { label: "-6", color: "text-slate-400" },
+  { label: "-12", color: "text-slate-400" },
+  { label: "-24", color: "text-slate-500" },
+  { label: "-∞", color: "text-slate-500" }
+];
+
 export const MasterConsole: React.FC<MasterConsoleProps> = ({
   masterVolume,
   onMasterVolumeChange,
@@ -218,12 +227,27 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             </span>
           </div>
 
-          {/* Fader & Dual Stereo VU Meter Section */}
-          <div className="flex items-center justify-center gap-3.5 py-1 w-full px-2">
+          {/* Fader & Dual Stereo VU Meter Section with Dual dB Scales */}
+          <div className="flex items-center justify-center gap-2 py-1 w-full px-1">
+            {/* Left dB Scale */}
+            <div className="flex flex-col items-end gap-1 select-none pointer-events-none">
+              <span className="text-[9px] font-mono font-bold text-slate-500">dB</span>
+              <div className="flex flex-col justify-between h-36 py-1">
+                {DB_SCALE_MARKS.map((mark) => (
+                  <div key={`l-${mark.label}`} className="flex items-center gap-1">
+                    <span className={`text-[8px] font-mono font-bold leading-none ${mark.color}`}>
+                      {mark.label}
+                    </span>
+                    <span className="w-1.5 h-[1px] bg-slate-700" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Left Channel VU Meter */}
             <div className="flex flex-col items-center gap-1">
-              <span className="text-[9px] font-mono font-bold text-slate-400">L</span>
-              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between">
+              <span className="text-[9px] font-mono font-bold text-slate-300">L</span>
+              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between shadow-inner">
                 {Array.from({ length: TOTAL_SEGMENTS }, (_, idx) => {
                   const isLit = idx < leftLitCount;
                   let color = "bg-emerald-400 shadow-xs shadow-emerald-400";
@@ -249,14 +273,14 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
               onPointerMove={handlePointerMove}
               onWheel={handleMasterWheel}
               title={`Master Volume: ${Math.round(masterVolume * 100)}% (Kéo thả, bấm chuột, lăn con lăn hoặc bấm phím ↑ / ↓)`}
-              className="relative flex flex-col items-center justify-center h-36 w-12 cursor-pointer select-none group/fader touch-none"
+              className="relative flex flex-col items-center justify-center h-36 w-11 cursor-pointer select-none group/fader touch-none"
             >
-              {/* Scale dB Markings */}
-              <div className="absolute -left-1 inset-y-2 flex flex-col justify-between text-[7px] font-mono font-bold text-slate-500 pointer-events-none">
-                <span>0dB</span>
-                <span>-6</span>
-                <span>-12</span>
-                <span>-∞</span>
+              {/* Center Reference Ticks */}
+              <div className="absolute inset-y-2 w-full flex flex-col justify-between items-center pointer-events-none opacity-40">
+                <div className="w-5 h-[1px] bg-amber-400/80" />
+                <div className="w-4 h-[1px] bg-slate-600" />
+                <div className="w-4 h-[1px] bg-slate-600" />
+                <div className="w-4 h-[1px] bg-slate-700" />
               </div>
 
               {/* Fader Track Slot */}
@@ -286,8 +310,8 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
 
             {/* Right Channel VU Meter */}
             <div className="flex flex-col items-center gap-1">
-              <span className="text-[9px] font-mono font-bold text-slate-400">R</span>
-              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between">
+              <span className="text-[9px] font-mono font-bold text-slate-300">R</span>
+              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between shadow-inner">
                 {Array.from({ length: TOTAL_SEGMENTS }, (_, idx) => {
                   const isLit = idx < rightLitCount;
                   let color = "bg-emerald-400 shadow-xs shadow-emerald-400";
@@ -303,6 +327,21 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
                     />
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Right dB Scale */}
+            <div className="flex flex-col items-start gap-1 select-none pointer-events-none">
+              <span className="text-[9px] font-mono font-bold text-slate-500">dB</span>
+              <div className="flex flex-col justify-between h-36 py-1">
+                {DB_SCALE_MARKS.map((mark) => (
+                  <div key={`r-${mark.label}`} className="flex items-center gap-1">
+                    <span className="w-1.5 h-[1px] bg-slate-700" />
+                    <span className={`text-[8px] font-mono font-bold leading-none ${mark.color}`}>
+                      {mark.label}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
