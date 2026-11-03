@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { UploadCloud, Music, PlusCircle } from "lucide-react";
+import { UploadCloud, Music, PlusCircle, RotateCcw, AlertTriangle } from "lucide-react";
 import { DeckCard } from "./components/deck/DeckCard";
 import { MasterConsole } from "./components/controls/MasterConsole";
 import { audioEngine } from "./features/audio/audioEngine";
@@ -7,7 +7,8 @@ import { logger } from "./utils/logger";
 import {
   saveSlotAudio,
   getSlotAudio,
-  deleteSlotAudio
+  deleteSlotAudio,
+  clearAllSlotAudio
 } from "./utils/audioStorage";
 import { EventPresetSchema, type DeckSlotConfig } from "./types";
 
@@ -134,6 +135,7 @@ export const App: React.FC = () => {
     total: number;
     fileName: string;
   } | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   const dragCounterRef = useRef(0);
 
@@ -672,6 +674,34 @@ export const App: React.FC = () => {
     e.target.value = "";
   };
 
+  /**
+   * Reset All for a New Show
+   * Clears all channels, caches, and restores 20 clean default slots
+   */
+  const handleConfirmResetAll = async () => {
+    try {
+      // 1. Immediately silence any active audio
+      audioEngine.panicMuteAll(0);
+      audioEngine.resetAllChannels();
+
+      // 2. Clear IndexedDB audio storage
+      await clearAllSlotAudio();
+
+      // 3. Clear localStorage cache
+      localStorage.removeItem("playmusic_session_slots");
+      localStorage.removeItem("playmusic_session_event");
+
+      // 4. Reset slots to fresh default 20 slots
+      const freshSlots = generateDefaultSlots(20);
+      setSlots(freshSlots);
+      setEventName("Show mới");
+      setShowResetModal(false);
+      logger.info("Workspace reset for a new show successfully");
+    } catch (err) {
+      logger.error("Failed to reset show", err);
+    }
+  };
+
   return (
     <div
       onDragEnter={handleWindowDragEnter}
@@ -731,18 +761,29 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Event Name Input */}
-        <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Show:
-          </span>
-          <input
-            type="text"
-            value={eventName}
-            onChange={(e) => setEventName(e.target.value)}
-            placeholder="Tên sự kiện / Kịch bản show..."
-            className="text-xs font-semibold bg-transparent text-slate-100 focus:outline-none w-56 sm:w-72"
-          />
+        {/* Event Name Input & Quick New Show Button */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              Show:
+            </span>
+            <input
+              type="text"
+              value={eventName}
+              onChange={(e) => setEventName(e.target.value)}
+              placeholder="Tên sự kiện / Kịch bản show..."
+              className="text-xs font-semibold bg-transparent text-slate-100 focus:outline-none w-48 sm:w-64"
+            />
+          </div>
+
+          <button
+            onClick={() => setShowResetModal(true)}
+            title="Làm mới toàn bộ danh sách để setup Show mới"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-cyan-400 border border-slate-800 hover:border-cyan-500/40 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Tạo Show mới</span>
+          </button>
         </div>
       </header>
 
@@ -800,6 +841,7 @@ export const App: React.FC = () => {
           onLoadPreset={handleLoadPreset}
           onBatchAudioFiles={(files) => handleBatchLoadFiles(slots.length, files)}
           onAddSlot={handleAddSlot}
+          onResetAll={() => setShowResetModal(true)}
         />
       </div>
 
@@ -818,6 +860,49 @@ export const App: React.FC = () => {
           </span>
         </div>
       </footer>
+
+      {/* Reset / New Show Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex-shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  Tạo Show mới (Reset toàn bộ)?
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Thao tác này sẽ dừng toàn bộ âm thanh, dọn sạch dữ liệu bài hát và khôi phục về <span className="text-slate-200 font-semibold">20 ô trống mặc định</span> để bạn setup kịch bản cho show tiếp theo.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80 text-[11px] text-slate-400 leading-normal">
+              💡 <span className="font-semibold text-slate-300">Gợi ý:</span> Nếu bạn muốn tái sử dụng danh sách bài hát hiện tại, hãy bấm <span className="text-emerald-400 font-semibold">Lưu Preset</span> ở cột bên phải trước khi Reset!
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmResetAll}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-lg shadow-cyan-900/40 transition-all cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Xác nhận tạo Show mới</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

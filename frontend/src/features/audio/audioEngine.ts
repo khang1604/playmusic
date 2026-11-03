@@ -363,6 +363,23 @@ class AudioEngine {
     }
   }
 
+  public resetAllChannels() {
+    for (const channel of this.channels.values()) {
+      try {
+        if (channel.source) {
+          channel.source.onended = null;
+          channel.source.stop();
+          channel.source.disconnect();
+        }
+        channel.gainNode.disconnect();
+      } catch {
+        // Safe to ignore
+      }
+    }
+    this.channels.clear();
+    logger.info("All audio channels reset and cleared from AudioEngine");
+  }
+
   public toggleMute(slotId: number) {
     const channel = this.getChannel(slotId);
     channel.isMuted = !channel.isMuted;

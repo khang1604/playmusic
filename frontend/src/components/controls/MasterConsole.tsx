@@ -9,7 +9,8 @@ import {
   PlusCircle,
   Layers,
   Radio,
-  SlidersHorizontal
+  SlidersHorizontal,
+  RotateCcw
 } from "lucide-react";
 import { audioEngine } from "../../features/audio/audioEngine";
 
@@ -27,6 +28,7 @@ interface MasterConsoleProps {
   onLoadPreset: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onBatchAudioFiles: (files: File[]) => void;
   onAddSlot: () => void;
+  onResetAll: () => void;
 }
 
 const TOTAL_SEGMENTS = 14;
@@ -53,7 +55,8 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
   onSavePreset,
   onLoadPreset,
   onBatchAudioFiles,
-  onAddSlot
+  onAddSlot,
+  onResetAll
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchAudioInputRef = useRef<HTMLInputElement>(null);
@@ -394,6 +397,16 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             <span>Mở Preset</span>
           </button>
         </div>
+
+        {/* Reset / New Show Button */}
+        <button
+          onClick={onResetAll}
+          title="Làm mới toàn bộ danh sách bài hát để chuẩn bị cho Show mới"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-cyan-400 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+        >
+          <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Tạo Show mới (Reset)</span>
+        </button>
 
         {/* Panic Stop Button - Mouse Click ONLY */}
         <button
