@@ -5,19 +5,32 @@ use std::fs;
 use std::path::PathBuf;
 
 #[tauri::command]
-fn save_preset_file(filename: String, content: String) -> Result<String, String> {
+fn save_preset_file(default_filename: String, content: String) -> Result<Option<String>, String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| ".".to_string());
 
-    let mut target_dir = PathBuf::from(&home).join("Downloads");
-    if !target_dir.exists() {
-        target_dir = PathBuf::from(&home);
-    }
+    let downloads = PathBuf::from(&home).join("Downloads");
+    let starting_dir = if downloads.exists() {
+        downloads
+    } else {
+        PathBuf::from(&home)
+    };
 
-    let file_path = target_dir.join(&filename);
-    fs::write(&file_path, content).map_err(|e| e.to_string())?;
-    Ok(file_path.to_string_lossy().to_string())
+    let file = rfd::FileDialog::new()
+        .set_title("Chọn nơi lưu file cấu hình Show (Preset)")
+        .set_directory(&starting_dir)
+        .set_file_name(&default_filename)
+        .add_filter("PlayMusic Preset (*.json)", &["json"])
+        .save_file();
+
+    match file {
+        Some(path) => {
+            fs::write(&path, content).map_err(|e| format!("Không thể ghi file: {}", e))?;
+            Ok(Some(path.to_string_lossy().to_string()))
+        }
+        None => Ok(None),
+    }
 }
 
 #[tauri::command]

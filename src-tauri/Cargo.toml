@@ -1,6 +1,6 @@
 [package]
 name = "playmusic"
-version = "1.0.11"
+version = "1.0.12"
 description = "Live Event Audio Cue & Polyphonic Soundboard Workstation"
 authors = ["PlayMusic Studio Team"]
 edition = "2021"
@@ -13,3 +13,4 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-shell = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+rfd = "0.15"

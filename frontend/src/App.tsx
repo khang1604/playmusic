@@ -523,7 +523,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // Save Event Preset to JSON file
+  // Save Event Preset to JSON file with User-Selected Location
   const handleSavePreset = async () => {
     try {
       const cleanEventName = eventName.trim() || "PlayMusic Show";
@@ -542,7 +542,7 @@ export const App: React.FC = () => {
       const safeName = cleanEventName.toLowerCase().replace(/[^a-z0-9]/gi, "_");
       const filename = `${safeName || "show"}_preset.json`;
 
-      // Native Tauri Save
+      // 1. Native Tauri Save (Opens native OS "Save As" file picker dialog)
       const isTauri =
         typeof window !== "undefined" &&
         Boolean(
@@ -552,19 +552,56 @@ export const App: React.FC = () => {
       if (isTauri) {
         try {
           const { invoke } = await import("@tauri-apps/api/core");
-          const savedPath = await invoke<string>("save_preset_file", {
-            filename,
+          const savedPath = await invoke<string | null>("save_preset_file", {
+            defaultFilename: filename,
             content: jsonContent
           });
-          alert(`Đã lưu file preset sự kiện thành công tại:\n${savedPath}`);
-          logger.info(`Preset saved via Tauri to: ${savedPath}`);
+          if (savedPath) {
+            alert(`Đã lưu file preset sự kiện thành công tại:\n${savedPath}`);
+            logger.info(`Preset saved via Tauri to: ${savedPath}`);
+          } else {
+            logger.info("User cancelled preset save dialog");
+          }
           return;
         } catch (tauriErr) {
-          logger.warn("Tauri native save failed, trying browser download fallback", tauriErr);
+          logger.warn("Tauri native save failed, trying browser file picker fallback", tauriErr);
         }
       }
 
-      // Browser Fallback (Blob anchor download)
+      // 2. Modern Browser File System Access API (showSaveFilePicker allows choosing directory)
+      if ("showSaveFilePicker" in window) {
+        try {
+          const handle = await (window as unknown as {
+            showSaveFilePicker: (options: unknown) => Promise<{
+              createWritable: () => Promise<{
+                write: (data: string) => Promise<void>;
+                close: () => Promise<void>;
+              }>;
+            }>;
+          }).showSaveFilePicker({
+            suggestedName: filename,
+            types: [
+              {
+                description: "PlayMusic Event Preset (*.json)",
+                accept: { "application/json": [".json"] }
+              }
+            ]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(jsonContent);
+          await writable.close();
+          logger.info(`Preset saved via showSaveFilePicker: ${filename}`);
+          return;
+        } catch (pickerErr: unknown) {
+          if ((pickerErr as { name?: string })?.name === "AbortError") {
+            // User cancelled file picker dialog
+            return;
+          }
+          logger.warn("showSaveFilePicker failed, falling back to blob anchor", pickerErr);
+        }
+      }
+
+      // 3. Fallback to standard Blob anchor download
       const blob = new Blob([jsonContent], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
