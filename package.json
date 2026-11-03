@@ -1,6 +1,6 @@
 {
   "name": "playmusic",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "private": true,
   "scripts": {
     "dev": "npm --prefix frontend run dev",

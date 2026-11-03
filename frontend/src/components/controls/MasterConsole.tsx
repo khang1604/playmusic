@@ -26,6 +26,7 @@ interface MasterConsoleProps {
   onPanicStop: () => void;
   onSavePreset: () => void;
   onLoadPreset: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onTriggerLoadPreset?: () => Promise<boolean>;
   onBatchAudioFiles: (files: File[]) => void;
   onAddSlot: () => void;
   onResetAll: () => void;
@@ -54,6 +55,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
   onPanicStop,
   onSavePreset,
   onLoadPreset,
+  onTriggerLoadPreset,
   onBatchAudioFiles,
   onAddSlot,
   onResetAll
@@ -398,7 +400,17 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             <span>Lưu Preset</span>
           </button>
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={async () => {
+              if (onTriggerLoadPreset) {
+                try {
+                  const handled = await onTriggerLoadPreset();
+                  if (handled) return;
+                } catch {
+                  // Fallback to file input
+                }
+              }
+              fileInputRef.current?.click();
+            }}
             title="Mở file kịch bản (.json)"
             className="flex items-center justify-center gap-1.5 px-2.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
           >

@@ -8,7 +8,9 @@ import {
   saveSlotAudio,
   getSlotAudio,
   deleteSlotAudio,
-  clearAllSlotAudio
+  findAudioByFileName,
+  blobToBase64,
+  base64ToArrayBuffer
 } from "./utils/audioStorage";
 import { EventPresetSchema, type DeckSlotConfig } from "./types";
 
@@ -30,6 +32,7 @@ function generateDefaultSlots(count = 20): DeckSlotConfig[] {
       fileName: null,
       filePath: null,
       fileUrl: null,
+      audioBase64: null,
       durationSeconds: 0,
       cueInSeconds: 0,
       volume: 1.0,
@@ -43,10 +46,12 @@ function generateDefaultSlots(count = 20): DeckSlotConfig[] {
 /**
  * Attempt to restore the audio buffer for a slot from:
  * 1. Tauri native filesystem read (if running in desktop and slot.filePath exists)
- * 2. IndexedDB blob cache
+ * 2. Same directory as preset file (presetParentDir + slot.fileName)
+ * 3. IndexedDB blob cache
  */
 async function restoreAudioForSlot(
-  slot: DeckSlotConfig
+  slot: DeckSlotConfig,
+  presetParentDir?: string
 ): Promise<AudioBuffer | null> {
   const isTauri =
     typeof window !== "undefined" &&
@@ -56,31 +61,61 @@ async function restoreAudioForSlot(
     );
 
   // 1. Try reading from disk via Tauri native command
-  if (isTauri && slot.filePath) {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const bytes = await invoke<number[] | Uint8Array>("read_audio_file", {
-        filePath: slot.filePath
-      });
-      const uint8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-      const arrayBuf = (uint8.buffer.slice(
-        uint8.byteOffset,
-        uint8.byteOffset + uint8.byteLength
-      ) as unknown) as ArrayBuffer;
-      const buffer = await audioEngine.loadAudioBuffer(
-        slot.id,
-        arrayBuf,
-        slot.fileName || `slot_${slot.id}`
-      );
-      // Cache to IndexedDB for quick access
-      const blob = new Blob([arrayBuf]);
-      await saveSlotAudio(slot.id, blob, slot.fileName || `slot_${slot.id}`);
-      return buffer;
-    } catch (tauriErr) {
-      logger.warn(
-        `Tauri failed to read file from path '${slot.filePath}' for slot #${slot.id}`,
-        tauriErr
-      );
+  if (isTauri) {
+    const { invoke } = await import("@tauri-apps/api/core");
+
+    // Candidate A: slot.filePath
+    if (slot.filePath) {
+      try {
+        const bytes = await invoke<number[] | Uint8Array>("read_audio_file", {
+          filePath: slot.filePath
+        });
+        const uint8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        const arrayBuf = (uint8.buffer.slice(
+          uint8.byteOffset,
+          uint8.byteOffset + uint8.byteLength
+        ) as unknown) as ArrayBuffer;
+        const buffer = await audioEngine.loadAudioBuffer(
+          slot.id,
+          arrayBuf,
+          slot.fileName || `slot_${slot.id}`
+        );
+        // Cache to IndexedDB for quick access
+        const blob = new Blob([arrayBuf]);
+        await saveSlotAudio(slot.id, blob, slot.fileName || `slot_${slot.id}`);
+        return buffer;
+      } catch (tauriErr) {
+        logger.debug(
+          `Could not read stored filePath '${slot.filePath}' for slot #${slot.id}`
+        );
+      }
+    }
+
+    // Candidate B: Same directory as preset JSON (presetParentDir + slot.fileName)
+    if (presetParentDir && slot.fileName) {
+      try {
+        const sep = presetParentDir.includes("\\") ? "\\" : "/";
+        const candidate = `${presetParentDir}${sep}${slot.fileName}`;
+        const bytes = await invoke<number[] | Uint8Array>("read_audio_file", {
+          filePath: candidate
+        });
+        const uint8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        const arrayBuf = (uint8.buffer.slice(
+          uint8.byteOffset,
+          uint8.byteOffset + uint8.byteLength
+        ) as unknown) as ArrayBuffer;
+        const buffer = await audioEngine.loadAudioBuffer(
+          slot.id,
+          arrayBuf,
+          slot.fileName
+        );
+        const blob = new Blob([arrayBuf]);
+        await saveSlotAudio(slot.id, blob, slot.fileName);
+        slot.filePath = candidate;
+        return buffer;
+      } catch {
+        // Not in preset folder
+      }
     }
   }
 
@@ -139,6 +174,7 @@ export const App: React.FC = () => {
   const [sessionKey, setSessionKey] = useState(0);
 
   const dragCounterRef = useRef(0);
+  const relinkAudioInputRef = useRef<HTMLInputElement>(null);
 
   // Sync slots to localStorage
   useEffect(() => {
@@ -253,6 +289,7 @@ export const App: React.FC = () => {
         fileName: null,
         filePath: null,
         fileUrl: null,
+        audioBase64: null,
         durationSeconds: 0,
         cueInSeconds: 0,
         volume: 1.0,
@@ -447,6 +484,7 @@ export const App: React.FC = () => {
             fileName: file.name,
             filePath,
             fileUrl: null,
+            audioBase64: null,
             durationSeconds: 0,
             cueInSeconds: 0,
             volume: 1.0,
@@ -489,6 +527,137 @@ export const App: React.FC = () => {
     }
   };
 
+  // Handle Native OS File Paths dropped onto the Tauri Window
+  const handleNativeDropPaths = async (paths: string[]) => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const audioExtensions = [".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac"];
+      const audioPaths = paths.filter((p) => {
+        const lower = p.toLowerCase();
+        return audioExtensions.some((ext) => lower.endsWith(ext));
+      });
+
+      if (audioPaths.length === 0) return;
+
+      const workingSlots = [...slots];
+      const firstEmptyIdx = workingSlots.findIndex((s) => !s.fileName);
+      const startIdx = firstEmptyIdx >= 0 ? firstEmptyIdx : 0;
+
+      setBatchLoadingProgress({
+        current: 0,
+        total: audioPaths.length,
+        fileName: "Đang nạp file từ máy tính..."
+      });
+
+      for (let i = 0; i < audioPaths.length; i++) {
+        const filePath = audioPaths[i];
+        const fileName = filePath.split(/[/\\]/).pop() || `Track_${i + 1}`;
+        const cleanLabel = fileName.replace(/\.[^/.]+$/, "");
+        const targetIndex = startIdx + i;
+
+        if (targetIndex >= workingSlots.length) {
+          const nextId =
+            workingSlots.length > 0
+              ? Math.max(...workingSlots.map((s) => s.id)) + 1
+              : 1;
+          const nextKeymap = DEFAULT_KEYMAPS[workingSlots.length] || "";
+          workingSlots.push({
+            id: nextId,
+            keymap: nextKeymap,
+            label: cleanLabel,
+            fileName,
+            filePath,
+            fileUrl: null,
+            audioBase64: null,
+            durationSeconds: 0,
+            cueInSeconds: 0,
+            volume: 1.0,
+            isMuted: false,
+            isLooping: false,
+            color: "slate"
+          });
+        }
+
+        const targetSlot = workingSlots[targetIndex];
+
+        setBatchLoadingProgress({
+          current: i + 1,
+          total: audioPaths.length,
+          fileName
+        });
+
+        try {
+          const bytes = await invoke<number[] | Uint8Array>("read_audio_file", {
+            filePath
+          });
+          const uint8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+          const arrayBuf = (uint8.buffer.slice(
+            uint8.byteOffset,
+            uint8.byteOffset + uint8.byteLength
+          ) as unknown) as ArrayBuffer;
+
+          const buffer = await audioEngine.loadAudioBuffer(
+            targetSlot.id,
+            arrayBuf,
+            fileName
+          );
+          const blob = new Blob([arrayBuf]);
+          await saveSlotAudio(targetSlot.id, blob, fileName);
+
+          workingSlots[targetIndex] = {
+            ...targetSlot,
+            fileName,
+            filePath,
+            label: targetSlot.fileName ? targetSlot.label : cleanLabel,
+            durationSeconds: buffer.duration
+          };
+        } catch (err) {
+          logger.error(`Lỗi khi nạp file ${filePath}`, err);
+        }
+      }
+
+      setSlots(workingSlots);
+      setBatchLoadingProgress(null);
+    } catch (err) {
+      logger.error("Native drop handler error", err);
+      setBatchLoadingProgress(null);
+    }
+  };
+
+  // Listen for native OS drag and drop on Tauri window
+  useEffect(() => {
+    const isTauri =
+      typeof window !== "undefined" &&
+      Boolean(
+        (window as unknown as { __TAURI_INTERNALS__?: unknown })
+          .__TAURI_INTERNALS__
+      );
+    if (!isTauri) return;
+
+    let unlisten: (() => void) | undefined;
+    async function setupTauriDrop() {
+      try {
+        const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+        const appWindow = getCurrentWebviewWindow();
+        unlisten = await appWindow.onDragDropEvent(async (event) => {
+          if (event.payload.type === "drop") {
+            const paths = event.payload.paths;
+            if (paths && paths.length > 0) {
+              await handleNativeDropPaths(paths);
+            }
+          }
+        });
+      } catch (err) {
+        logger.debug("Tauri drag-drop listener could not be registered", err);
+      }
+    }
+
+    setupTauriDrop();
+    return () => {
+      unlisten?.();
+    };
+  }, [slots]);
+
   // Window Drag & Drop Listeners
   const handleWindowDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -523,15 +692,44 @@ export const App: React.FC = () => {
     }
   };
 
-  // Save Event Preset to JSON file with User-Selected Location
+  // Save Event Preset to JSON file with User-Selected Location (Includes embedded audio for full portability)
   const handleSavePreset = async () => {
     try {
       const cleanEventName = eventName.trim() || "PlayMusic Show";
+
+      // Package audio into slots as Base64 so the preset is 100% self-contained and portable
+      const slotsWithAudio = slots.filter((s) => Boolean(s.fileName));
+      if (slotsWithAudio.length > 0) {
+        setBatchLoadingProgress({
+          current: 0,
+          total: slotsWithAudio.length,
+          fileName: "Đang đóng gói âm thanh vào Preset..."
+        });
+      }
+
+      const packagedSlots = await Promise.all(
+        slots.map(async (slot) => {
+          if (!slot.fileName) return slot;
+          try {
+            const cached = await getSlotAudio(slot.id);
+            if (cached && cached.blob) {
+              const base64 = await blobToBase64(cached.blob);
+              return { ...slot, audioBase64: base64 };
+            }
+          } catch (e) {
+            logger.warn(`Could not package audioBase64 for slot #${slot.id}`, e);
+          }
+          return slot;
+        })
+      );
+
+      setBatchLoadingProgress(null);
+
       const presetData = {
         version: "1.0.0",
         eventName: cleanEventName,
         createdAt: new Date().toISOString(),
-        slots,
+        slots: packagedSlots,
         masterVolume,
         fadeDurationMs,
         exclusiveMode
@@ -618,59 +816,177 @@ export const App: React.FC = () => {
     }
   };
 
-  // Load Event Preset from JSON file
-  const handleLoadPreset = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Relink missing audio files from a user-selected folder
+  const handleRelinkFromFolder = async (currentSlots: DeckSlotConfig[]) => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const chosenFolder = await invoke<string | null>("pick_audio_folder");
+      if (!chosenFolder) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const rawJson = JSON.parse(event.target?.result as string);
-        const parsed = EventPresetSchema.parse(rawJson);
+      const files = await invoke<[string, string][]>("scan_folder_audio_files", {
+        folderPath: chosenFolder
+      });
 
-        setEventName(parsed.eventName);
-        setMasterVolume(parsed.masterVolume);
-        audioEngine.setMasterVolume(parsed.masterVolume);
-        setFadeDurationMs(parsed.fadeDurationMs);
-        setExclusiveMode(parsed.exclusiveMode);
-        audioEngine.setExclusiveMode(parsed.exclusiveMode);
-        setSlots(parsed.slots);
+      if (!files || files.length === 0) {
+        alert("Không tìm thấy file âm thanh nào (.mp3, .wav, .flac, .ogg, .m4a, .aac) trong thư mục đã chọn.");
+        return;
+      }
 
-        // Update audio engine settings per slot
-        parsed.slots.forEach((s) => {
-          audioEngine.setVolume(s.id, s.volume);
-          audioEngine.setLoop(s.id, s.isLooping);
-          audioEngine.setCueIn(s.id, s.cueInSeconds);
-          if (s.isMuted) {
-            audioEngine.toggleMute(s.id);
-          }
-        });
+      // Map lowercase filename -> absolute path
+      const fileMap = new Map<string, string>();
+      for (const [name, path] of files) {
+        fileMap.set(name.toLowerCase().trim(), path);
+      }
 
-        logger.info(`Preset loaded: ${parsed.eventName}`);
+      setBatchLoadingProgress({
+        current: 0,
+        total: currentSlots.length,
+        fileName: "Đang kết nối lại các bài nhạc..."
+      });
 
-        // Restore audio buffers for slots with fileName
-        const slotsWithAudio = parsed.slots.filter((s) => Boolean(s.fileName));
-        let restoredCount = 0;
+      let matchedCount = 0;
+      const updatedSlots = [...currentSlots];
 
-        if (slotsWithAudio.length > 0) {
+      for (let i = 0; i < currentSlots.length; i++) {
+        const slot = currentSlots[i];
+        if (!slot.fileName) continue;
+
+        const targetPath = fileMap.get(slot.fileName.toLowerCase().trim());
+        if (targetPath) {
           setBatchLoadingProgress({
-            current: 0,
-            total: slotsWithAudio.length,
-            fileName: "Đang khôi phục các bài nhạc..."
+            current: matchedCount + 1,
+            total: currentSlots.length,
+            fileName: `Nạp: ${slot.fileName}`
           });
 
-          for (let i = 0; i < slotsWithAudio.length; i++) {
-            const slot = slotsWithAudio[i];
-            setBatchLoadingProgress({
-              current: i + 1,
-              total: slotsWithAudio.length,
-              fileName: `Nạp: ${slot.fileName || slot.label}`
+          try {
+            const bytes = await invoke<number[] | Uint8Array>("read_audio_file", {
+              filePath: targetPath
             });
+            const uint8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+            const arrayBuf = (uint8.buffer.slice(
+              uint8.byteOffset,
+              uint8.byteOffset + uint8.byteLength
+            ) as unknown) as ArrayBuffer;
 
+            const buffer = await audioEngine.loadAudioBuffer(
+              slot.id,
+              arrayBuf,
+              slot.fileName
+            );
+            const blob = new Blob([arrayBuf]);
+            await saveSlotAudio(slot.id, blob, slot.fileName);
+
+            const idx = updatedSlots.findIndex((s) => s.id === slot.id);
+            if (idx !== -1) {
+              updatedSlots[idx] = {
+                ...updatedSlots[idx],
+                filePath: targetPath,
+                durationSeconds: buffer.duration
+              };
+            }
+            matchedCount++;
+          } catch (loadErr) {
+            logger.warn(`Failed to read relinked audio file ${targetPath}`, loadErr);
+          }
+        }
+      }
+
+      setSlots(updatedSlots);
+      setBatchLoadingProgress(null);
+      await new Promise((r) => setTimeout(r, 100));
+
+      alert(
+        `Đã kết nối thành công ${matchedCount} bài nhạc từ thư mục!\n` +
+        `Tất cả bài hát đã sẵn sàng phát trên sân khấu.`
+      );
+    } catch (err) {
+      logger.error("Folder relinking error", err);
+      setBatchLoadingProgress(null);
+    }
+  };
+
+  // Apply parsed preset data to state and restore audio
+  const applyPresetData = async (rawJson: unknown, presetParentDir?: string) => {
+    try {
+      const parsed = EventPresetSchema.parse(rawJson);
+
+      setEventName(parsed.eventName);
+      setMasterVolume(parsed.masterVolume);
+      audioEngine.setMasterVolume(parsed.masterVolume);
+      setFadeDurationMs(parsed.fadeDurationMs);
+      setExclusiveMode(parsed.exclusiveMode);
+      audioEngine.setExclusiveMode(parsed.exclusiveMode);
+      setSlots(parsed.slots);
+
+      // Update audio engine settings per slot
+      parsed.slots.forEach((s) => {
+        audioEngine.setVolume(s.id, s.volume);
+        audioEngine.setLoop(s.id, s.isLooping);
+        audioEngine.setCueIn(s.id, s.cueInSeconds);
+        if (s.isMuted) {
+          audioEngine.toggleMute(s.id);
+        }
+      });
+
+      logger.info(`Preset loaded: ${parsed.eventName}`);
+
+      // Restore audio buffers for slots with fileName
+      const slotsWithAudio = parsed.slots.filter((s) => Boolean(s.fileName));
+      let restoredCount = 0;
+
+      if (slotsWithAudio.length > 0) {
+        setBatchLoadingProgress({
+          current: 0,
+          total: slotsWithAudio.length,
+          fileName: "Đang khôi phục các bài nhạc..."
+        });
+
+        for (let i = 0; i < slotsWithAudio.length; i++) {
+          const slot = slotsWithAudio[i];
+          setBatchLoadingProgress({
+            current: i + 1,
+            total: slotsWithAudio.length,
+            fileName: `Nạp: ${slot.fileName || slot.label}`
+          });
+
+          // Priority 1: Embedded audioBase64 in preset file (100% portable)
+          if (slot.audioBase64) {
             try {
-              const buffer = await restoreAudioForSlot(slot);
-              if (buffer) {
+              const arrayBuf = await base64ToArrayBuffer(slot.audioBase64);
+              const buffer = await audioEngine.loadAudioBuffer(
+                slot.id,
+                arrayBuf,
+                slot.fileName || `slot_${slot.id}`
+              );
+              const blob = new Blob([arrayBuf]);
+              await saveSlotAudio(slot.id, blob, slot.fileName || `slot_${slot.id}`);
+              restoredCount++;
+              setSlots((prev) =>
+                prev.map((s) =>
+                  s.id === slot.id
+                    ? { ...s, durationSeconds: buffer.duration, filePath: slot.filePath, audioBase64: slot.audioBase64 }
+                    : s
+                )
+              );
+              continue;
+            } catch (err) {
+              logger.warn(`Failed to decode embedded audioBase64 for slot #${slot.id}`, err);
+            }
+          }
+
+          // Priority 2: Check IndexedDB by fileName (if audio was previously cached on this machine)
+          if (slot.fileName) {
+            try {
+              const cached = await findAudioByFileName(slot.fileName);
+              if (cached && cached.blob) {
+                const arrayBuf = await cached.blob.arrayBuffer();
+                const buffer = await audioEngine.loadAudioBuffer(
+                  slot.id,
+                  arrayBuf,
+                  slot.fileName
+                );
+                await saveSlotAudio(slot.id, cached.blob, slot.fileName);
                 restoredCount++;
                 setSlots((prev) =>
                   prev.map((s) =>
@@ -679,31 +995,123 @@ export const App: React.FC = () => {
                       : s
                   )
                 );
+                continue;
               }
-            } catch (restoreErr) {
-              logger.warn(`Could not restore audio for slot #${slot.id}`, restoreErr);
+            } catch (err) {
+              logger.debug(`findAudioByFileName failed for slot #${slot.id}`, err);
             }
           }
 
-          setBatchLoadingProgress(null);
+          // Priority 3: Native desktop disk / preset folder read (if in Tauri)
+          try {
+            const buffer = await restoreAudioForSlot(slot, presetParentDir);
+            if (buffer) {
+              restoredCount++;
+              setSlots((prev) =>
+                prev.map((s) =>
+                  s.id === slot.id
+                    ? { ...s, durationSeconds: buffer.duration, filePath: slot.filePath }
+                    : s
+                )
+              );
+              continue;
+            }
+          } catch (restoreErr) {
+            logger.warn(`Could not restore audio for slot #${slot.id}`, restoreErr);
+          }
         }
 
-        const totalExpected = slotsWithAudio.length;
-        if (totalExpected === 0) {
-          alert(`Đã nạp preset "${parsed.eventName}" thành công!`);
-        } else if (restoredCount === totalExpected) {
-          alert(
-            `Đã nạp preset "${parsed.eventName}" thành công!\nTất cả ${restoredCount}/${totalExpected} bài nhạc đã sẵn sàng phát.`
+        setBatchLoadingProgress(null);
+      }
+
+      // Allow React to re-render and unmount the progress bar BEFORE showing alert or dialog
+      await new Promise((r) => setTimeout(r, 100));
+
+      const totalExpected = slotsWithAudio.length;
+      if (totalExpected === 0) {
+        alert(`Đã nạp preset "${parsed.eventName}" thành công!`);
+      } else if (restoredCount === totalExpected) {
+        alert(
+          `Đã nạp preset "${parsed.eventName}" thành công!\nTất cả ${restoredCount}/${totalExpected} bài nhạc đã sẵn sàng phát.`
+        );
+      } else {
+        const missingCount = totalExpected - restoredCount;
+        const isTauri =
+          typeof window !== "undefined" &&
+          Boolean(
+            (window as unknown as { __TAURI_INTERNALS__?: unknown })
+              .__TAURI_INTERNALS__
           );
-        } else {
-          const missingCount = totalExpected - restoredCount;
-          alert(
-            `Đã nạp preset "${parsed.eventName}"!\n` +
-            `• Đã khôi phục nhạc: ${restoredCount}/${totalExpected} bài\n` +
+
+        if (isTauri) {
+          const wantPickFolder = confirm(
+            `Đã nạp cấu hình preset "${parsed.eventName}"!\n` +
+            `• Đã khôi phục: ${restoredCount}/${totalExpected} bài\n` +
             `• Chưa có file âm thanh: ${missingCount} bài\n\n` +
-            `👉 Mẹo: Bạn chỉ cần kéo thả thư mục nhạc hoặc các file mp3 vào cửa sổ, PlayMusic sẽ tự động gắn lại nhạc vào đúng tên bài!`
+            `Bạn có muốn chọn thư mục chứa các file nhạc để PlayMusic tự động kết nối lại toàn bộ không?`
           );
+          if (wantPickFolder) {
+            await handleRelinkFromFolder(parsed.slots);
+          }
+        } else {
+          const wantPickFiles = confirm(
+            `Đã nạp cấu hình preset "${parsed.eventName}"!\n` +
+            `• Đã khôi phục: ${restoredCount}/${totalExpected} bài\n` +
+            `• Chưa có file âm thanh: ${missingCount} bài\n\n` +
+            `Bạn có muốn chọn các file nhạc (.mp3, .wav) từ máy tính để PlayMusic tự động gắn vào đúng các ô không?`
+          );
+          if (wantPickFiles) {
+            relinkAudioInputRef.current?.click();
+          }
         }
+      }
+    } catch (err) {
+      logger.error("Failed to parse preset file", err);
+      setBatchLoadingProgress(null);
+      await new Promise((r) => setTimeout(r, 100));
+      alert("File preset không đúng định dạng. Vui lòng kiểm tra lại cấu trúc file JSON.");
+    }
+  };
+
+  // Trigger Open Preset: Native OS file picker in Tauri with automatic fallback
+  const handleTriggerLoadPreset = async (): Promise<boolean> => {
+    const isTauri =
+      typeof window !== "undefined" &&
+      Boolean(
+        (window as unknown as { __TAURI_INTERNALS__?: unknown })
+          .__TAURI_INTERNALS__
+      );
+
+    if (isTauri) {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const res = await invoke<[string, string] | null>("pick_preset_file");
+        if (res) {
+          const [jsonContent, parentDir] = res;
+          const raw = JSON.parse(jsonContent);
+          await applyPresetData(raw, parentDir);
+          return true;
+        } else {
+          return true; // User cancelled file dialog
+        }
+      } catch (err) {
+        logger.warn("Tauri pick_preset_file not available, falling back to file input", err);
+        return false;
+      }
+    }
+    return false;
+  };
+
+  // Browser Fallback: Load Event Preset via <input type="file">
+  const handleLoadPreset = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const rawJson = JSON.parse(event.target?.result as string);
+        await applyPresetData(rawJson);
       } catch (err) {
         logger.error("Failed to parse preset file", err);
         alert("File preset không đúng định dạng. Vui lòng kiểm tra lại cấu trúc file JSON.");
@@ -723,10 +1131,7 @@ export const App: React.FC = () => {
       audioEngine.panicMuteAll(0);
       audioEngine.resetAllChannels();
 
-      // 2. Clear IndexedDB audio storage
-      await clearAllSlotAudio();
-
-      // 3. Clear localStorage cache
+      // 2. Clear localStorage session cache
       localStorage.removeItem("playmusic_session_slots");
       localStorage.removeItem("playmusic_session_event");
 
@@ -869,6 +1274,7 @@ export const App: React.FC = () => {
           onPanicStop={handlePanicStop}
           onSavePreset={handleSavePreset}
           onLoadPreset={handleLoadPreset}
+          onTriggerLoadPreset={handleTriggerLoadPreset}
           onBatchAudioFiles={(files) => {
             const firstEmptyIdx = slots.findIndex((s) => !s.fileName);
             handleBatchLoadFiles(firstEmptyIdx >= 0 ? firstEmptyIdx : 0, files);
@@ -936,6 +1342,20 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Hidden Multi-Audio Relink File Input */}
+      <input
+        ref={relinkAudioInputRef}
+        type="file"
+        multiple
+        accept="audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleBatchLoadFiles(0, Array.from(e.target.files));
+            e.target.value = "";
+          }
+        }}
+      />
     </div>
   );
 };

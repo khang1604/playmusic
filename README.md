@@ -2,7 +2,7 @@
 
 > **Phần mềm phát nhạc sự kiện, sân khấu, Soundboard & Audio Cue độ trễ siêu thấp cho Ubuntu Linux & Windows**  
 
-[Tải về / Downloads](#-tải-về--cài-đặt--downloads-latest-release-v1012)
+[Tải về / Downloads](#-tải-về--cài-đặt--downloads-latest-release-v1013)
 
 ---
 
@@ -38,15 +38,15 @@ Khác với các trình phát nhạc thông thường (chỉ mở được từn
 
 ---
 
-## 📥 Tải về & Cài đặt / Downloads (Latest Release v1.0.12)
+## 📥 Tải về & Cài đặt / Downloads (Latest Release v1.0.13)
 
-Get the latest pre-compiled installers directly from [GitHub Releases v1.0.12](https://github.com/khang1604/playmusic/releases/tag/v1.0.12):
+Get the latest pre-compiled installers directly from [GitHub Releases v1.0.13](https://github.com/khang1604/playmusic/releases/tag/v1.0.13):
 
 | Platform | Format | Download Link |
 | :--- | :--- | :--- |
-| **Ubuntu Linux** | `.deb` (Recommended) | [PlayMusic_1.0.12_amd64.deb](https://github.com/khang1604/playmusic/releases/download/v1.0.12/PlayMusic_1.0.12_amd64.deb) |
-| **Linux Portable** | `.AppImage` (Run anywhere) | [PlayMusic_1.0.12_amd64.AppImage](https://github.com/khang1604/playmusic/releases/download/v1.0.12/PlayMusic_1.0.12_amd64.AppImage) |
-| **Windows** | `.exe` Setup | [PlayMusic_1.0.12_x64-setup.exe](https://github.com/khang1604/playmusic/releases/download/v1.0.12/PlayMusic_1.0.12_x64-setup.exe) |
-| **Windows** | `.msi` Package | [PlayMusic_1.0.12_x64_en-US.msi](https://github.com/khang1604/playmusic/releases/download/v1.0.12/PlayMusic_1.0.12_x64_en-US.msi) |
+| **Ubuntu Linux** | `.deb` (Recommended) | [PlayMusic_1.0.13_amd64.deb](https://github.com/khang1604/playmusic/releases/download/v1.0.13/PlayMusic_1.0.13_amd64.deb) |
+| **Linux Portable** | `.AppImage` (Run anywhere) | [PlayMusic_1.0.13_amd64.AppImage](https://github.com/khang1604/playmusic/releases/download/v1.0.13/PlayMusic_1.0.13_amd64.AppImage) |
+| **Windows** | `.exe` Setup | [PlayMusic_1.0.13_x64-setup.exe](https://github.com/khang1604/playmusic/releases/download/v1.0.13/PlayMusic_1.0.13_x64-setup.exe) |
+| **Windows** | `.msi` Package | [PlayMusic_1.0.13_x64_en-US.msi](https://github.com/khang1604/playmusic/releases/download/v1.0.13/PlayMusic_1.0.13_x64_en-US.msi) |
 
 ---

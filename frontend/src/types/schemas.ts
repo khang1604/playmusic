@@ -26,6 +26,7 @@ export const DeckSlotSchema = z.object({
   fileName: z.string().nullable().default(null),
   filePath: z.string().nullable().default(null),
   fileUrl: z.string().nullable().default(null),
+  audioBase64: z.string().nullable().optional().default(null),
   durationSeconds: z.number().default(0),
   cueInSeconds: z.number().default(0),
   volume: z.number().default(1.0),

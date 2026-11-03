@@ -93,6 +93,40 @@ export async function getAllCachedAudios(): Promise<CachedAudioEntry[]> {
   }
 }
 
+export async function findAudioByFileName(fileName: string): Promise<CachedAudioEntry | null> {
+  try {
+    const all = await getAllCachedAudios();
+    const target = fileName.toLowerCase().trim();
+    const match = all.find(
+      (a) => a.fileName && a.fileName.toLowerCase().trim() === target
+    );
+    return match || null;
+  } catch (err) {
+    logger.warn(`Failed to find audio for ${fileName}`, err);
+    return null;
+  }
+}
+
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Failed to convert blob to base64 string"));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+export async function base64ToArrayBuffer(base64: string): Promise<ArrayBuffer> {
+  const res = await fetch(base64);
+  return await res.arrayBuffer();
+}
+
 export async function deleteSlotAudio(slotId: number): Promise<void> {
   try {
     const db = await openDB();
