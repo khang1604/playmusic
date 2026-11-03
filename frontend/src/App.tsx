@@ -136,6 +136,7 @@ export const App: React.FC = () => {
     fileName: string;
   } | null>(null);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [sessionKey, setSessionKey] = useState(0);
 
   const dragCounterRef = useRef(0);
 
@@ -517,7 +518,8 @@ export const App: React.FC = () => {
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const files = Array.from(e.dataTransfer.files);
-      await handleBatchLoadFiles(0, files);
+      const firstEmptyIdx = slots.findIndex((s) => !s.fileName);
+      await handleBatchLoadFiles(firstEmptyIdx >= 0 ? firstEmptyIdx : 0, files);
     }
   };
 
@@ -695,6 +697,8 @@ export const App: React.FC = () => {
       const freshSlots = generateDefaultSlots(20);
       setSlots(freshSlots);
       setEventName("Show mới");
+      setSessionKey((prev) => prev + 1);
+      setActiveCount(0);
       setShowResetModal(false);
       logger.info("Workspace reset for a new show successfully");
     } catch (err) {
@@ -713,7 +717,7 @@ export const App: React.FC = () => {
       {/* Global Drag & Drop Overlay */}
       {isWindowDragOver && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md border-4 border-dashed border-blue-500 m-3 rounded-2xl pointer-events-none animate-in fade-in duration-150">
-          <div className="w-20 h-20 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-400 mb-4 animate-bounce">
+          <div className="w-20 h-20 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-400 mb-4">
             <UploadCloud className="w-10 h-10" />
           </div>
           <h2 className="text-xl font-black uppercase tracking-wider text-white mb-2">
@@ -783,7 +787,7 @@ export const App: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 max-w-[1920px] mx-auto">
             {slots.map((slot) => (
               <DeckCard
-                key={slot.id}
+                key={`${sessionKey}-${slot.id}`}
                 config={slot}
                 fadeDurationMs={fadeDurationMs}
                 onUpdateConfig={(updated) => handleUpdateSlot(slot.id, updated)}
@@ -828,7 +832,10 @@ export const App: React.FC = () => {
           onPanicStop={handlePanicStop}
           onSavePreset={handleSavePreset}
           onLoadPreset={handleLoadPreset}
-          onBatchAudioFiles={(files) => handleBatchLoadFiles(slots.length, files)}
+          onBatchAudioFiles={(files) => {
+            const firstEmptyIdx = slots.findIndex((s) => !s.fileName);
+            handleBatchLoadFiles(firstEmptyIdx >= 0 ? firstEmptyIdx : 0, files);
+          }}
           onAddSlot={handleAddSlot}
           onResetAll={() => setShowResetModal(true)}
         />

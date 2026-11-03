@@ -113,6 +113,19 @@ export const DeckCard: React.FC<DeckCardProps> = ({
     return unsub;
   }, [config.id]);
 
+  // Synchronize runtime when audio is cleared (e.g. New Show reset)
+  useEffect(() => {
+    if (!config.fileName) {
+      setRuntime({
+        id: config.id,
+        status: "idle",
+        currentTime: config.cueInSeconds,
+        remainingTime: 0,
+        audioBuffer: null
+      });
+    }
+  }, [config.fileName, config.cueInSeconds, config.id]);
+
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -238,7 +251,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             handleFileDrop(e);
           }
         }}
-        className={`group relative flex flex-col justify-between p-2.5 rounded-xl border transition-all duration-150 select-none ${
+        className={`group relative flex flex-col justify-between p-2.5 rounded-xl border transition-colors duration-100 select-none ${
           colorStyle.border
         } ${colorStyle.bg} ${
           isReorderOver

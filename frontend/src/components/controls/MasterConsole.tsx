@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   AlertOctagon,
   Volume2,
@@ -42,35 +42,6 @@ const DB_SCALE_MARKS = [
   { label: "-∞", color: "text-slate-500" }
 ];
 
-/**
- * Isolated Ultra-Efficient VU Meter Channel Component
- * Crisp flat styling without heavy GPU Gaussian blur passes
- */
-const VUMeterBar = React.memo(({ litCount, label }: { litCount: number; label: string }) => {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="text-[9px] font-mono font-bold text-slate-300">{label}</span>
-      <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between shadow-inner">
-        {Array.from({ length: TOTAL_SEGMENTS }, (_, idx) => {
-          const isLit = idx < litCount;
-          let color = "bg-emerald-400";
-          if (idx >= 12) color = "bg-rose-500";
-          else if (idx >= 9) color = "bg-amber-400";
-
-          return (
-            <div
-              key={idx}
-              className={`w-full h-1.5 rounded-xs ${
-                isLit ? color : "bg-slate-900/60 opacity-20"
-              }`}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-});
-
 export const MasterConsole: React.FC<MasterConsoleProps> = ({
   masterVolume,
   onMasterVolumeChange,
@@ -90,49 +61,67 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchAudioInputRef = useRef<HTMLInputElement>(null);
   const faderRef = useRef<HTMLDivElement>(null);
+  const canvasLRef = useRef<HTMLCanvasElement>(null);
+  const canvasRRef = useRef<HTMLCanvasElement>(null);
 
-  // Real-time VU Meter audio level state (throttled to 30 FPS, sleeps when idle)
-  const [meterLeds, setMeterLeds] = useState<{ left: number; right: number }>({
-    left: 0,
-    right: 0
-  });
-
+  // High-Performance 2D Canvas VU Meter: 0 React re-renders, 0 DOM allocations, Sleeps on idle!
   useEffect(() => {
     let animId: number;
     let currentL = 0;
     let currentR = 0;
     let lastTick = 0;
-    const FRAME_INTERVAL = 33; // ~30 FPS cuts GPU/CPU load by more than half
+    const FRAME_MS = 33; // 30 FPS studio broadcast rate
 
-    const tick = (now: number) => {
-      // Idle optimization: when no audio is playing and decay is complete, halt animation loop!
-      if (activeCount === 0 && currentL < 0.01 && currentR < 0.01) {
-        if (currentL !== 0 || currentR !== 0) {
-          currentL = 0;
-          currentR = 0;
-          setMeterLeds({ left: 0, right: 0 });
+    const drawColumn = (canvas: HTMLCanvasElement | null, level: number) => {
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.clearRect(0, 0, 14, 144);
+
+      const litCount = Math.round(level * TOTAL_SEGMENTS);
+      const segmentHeight = 8;
+      const gap = 2;
+      const totalH = TOTAL_SEGMENTS * (segmentHeight + gap) - gap;
+      const offsetY = 3;
+
+      for (let i = 0; i < TOTAL_SEGMENTS; i++) {
+        const y = offsetY + totalH - (i + 1) * (segmentHeight + gap) + gap;
+        const isLit = i < litCount;
+
+        if (isLit) {
+          if (i >= 12) ctx.fillStyle = "#f43f5e"; // Rose 500
+          else if (i >= 9) ctx.fillStyle = "#fbbf24"; // Amber 400
+          else ctx.fillStyle = "#34d399"; // Emerald 400
+        } else {
+          ctx.fillStyle = "rgba(30, 41, 59, 0.4)"; // Dark unlit
         }
-        return;
+
+        ctx.fillRect(0, y, 14, segmentHeight);
+      }
+    };
+
+    const render = (now: number) => {
+      // Idle sleep: if no audio is playing and meter decayed to 0, stop loop to save 100% CPU/GPU!
+      if (activeCount === 0 && currentL < 0.01 && currentR < 0.01) {
+        drawColumn(canvasLRef.current, 0);
+        drawColumn(canvasRRef.current, 0);
+        return; // Do NOT schedule next frame!
       }
 
-      if (now - lastTick >= FRAME_INTERVAL) {
+      if (now - lastTick >= FRAME_MS) {
         lastTick = now;
         const raw = audioEngine.getMasterLevels();
         currentL = raw.left > currentL ? raw.left : currentL * 0.82;
         currentR = raw.right > currentR ? raw.right : currentR * 0.82;
 
-        const nextL = Math.round(Math.max(0, currentL) * TOTAL_SEGMENTS);
-        const nextR = Math.round(Math.max(0, currentR) * TOTAL_SEGMENTS);
-
-        setMeterLeds((prev) =>
-          prev.left === nextL && prev.right === nextR ? prev : { left: nextL, right: nextR }
-        );
+        drawColumn(canvasLRef.current, currentL);
+        drawColumn(canvasRRef.current, currentR);
       }
 
-      animId = requestAnimationFrame(tick);
+      animId = requestAnimationFrame(render);
     };
 
-    animId = requestAnimationFrame(tick);
+    animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
   }, [activeCount]);
 
@@ -185,7 +174,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             <span
               className={`w-2.5 h-2.5 rounded-full transition-colors ${
                 activeCount > 0
-                  ? "bg-emerald-400 shadow-md shadow-emerald-400/80 animate-pulse"
+                  ? "bg-emerald-400 shadow-sm shadow-emerald-400/50"
                   : "bg-slate-600"
               }`}
             />
@@ -289,8 +278,16 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
               </div>
             </div>
 
-            {/* Left Channel VU Meter */}
-            <VUMeterBar litCount={meterLeds.left} label="L" />
+            {/* Left Channel Canvas VU Meter */}
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[9px] font-mono font-bold text-slate-300">L</span>
+              <canvas
+                ref={canvasLRef}
+                width={14}
+                height={144}
+                className="bg-slate-950 rounded-md border border-slate-800 h-36 w-3.5 shadow-inner"
+              />
+            </div>
 
             {/* Custom Cross-Platform Studio Hardware Vertical Fader */}
             <div
@@ -334,8 +331,16 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
               </div>
             </div>
 
-            {/* Right Channel VU Meter */}
-            <VUMeterBar litCount={meterLeds.right} label="R" />
+            {/* Right Channel Canvas VU Meter */}
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[9px] font-mono font-bold text-slate-300">R</span>
+              <canvas
+                ref={canvasRRef}
+                width={14}
+                height={144}
+                className="bg-slate-950 rounded-md border border-slate-800 h-36 w-3.5 shadow-inner"
+              />
+            </div>
 
             {/* Right dB Scale */}
             <div className="flex flex-col items-start gap-1 select-none pointer-events-none">
@@ -417,7 +422,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
           title="Dừng toàn bộ bài hát trên sân khấu (Chỉ kích hoạt bằng click chuột)"
           className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-mono font-black text-xs uppercase tracking-wider bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-600 text-white shadow-xl shadow-rose-950/80 ring-2 ring-rose-500/50 hover:ring-rose-400 active:scale-95 transition-all cursor-pointer"
         >
-          <AlertOctagon className="w-4 h-4 animate-bounce" />
+          <AlertOctagon className="w-4 h-4 text-white" />
           <span>PANIC STOP</span>
         </button>
 

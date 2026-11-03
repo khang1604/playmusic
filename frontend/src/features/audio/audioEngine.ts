@@ -51,7 +51,6 @@ class AudioEngine {
       splitter.connect(this.analyserRight, 1);
 
       this.masterGain.connect(this.ctx.destination);
-      this.startPlaybackTicker();
       logger.info("Web AudioContext initialized with Stereo Analyser successfully");
     }
     if (this.ctx.state === "suspended") {
@@ -185,6 +184,7 @@ class AudioEngine {
         channel.status = "idle";
         channel.pausedAt = channel.cueInSeconds;
         this.notify(channel);
+        this.checkStopTicker();
       }
     };
 
@@ -194,6 +194,7 @@ class AudioEngine {
     channel.status = "playing";
     this.updateGain(channel);
     this.notify(channel);
+    this.startPlaybackTicker();
     logger.debug(`Slot ${slotId} playing at offset ${offset}s (Duration: ${duration}s)`);
   }
 
@@ -216,6 +217,7 @@ class AudioEngine {
         } catch { /* ignored */ }
         channel.status = "paused";
         this.notify(channel);
+        this.checkStopTicker();
       }, fadeMs);
     } else {
       try {
@@ -224,6 +226,7 @@ class AudioEngine {
       } catch { /* ignored */ }
       channel.status = "paused";
       this.notify(channel);
+      this.checkStopTicker();
     }
   }
 
@@ -250,6 +253,7 @@ class AudioEngine {
         channel.pausedAt = channel.cueInSeconds;
         this.updateGain(channel);
         this.notify(channel);
+        this.checkStopTicker();
       }, fadeMs);
     } else {
       try {
@@ -260,6 +264,7 @@ class AudioEngine {
       channel.pausedAt = channel.cueInSeconds;
       this.updateGain(channel);
       this.notify(channel);
+      this.checkStopTicker();
     }
   }
 
@@ -372,19 +377,29 @@ class AudioEngine {
   }
 
   public resetAllChannels() {
+    this.checkStopTicker();
     for (const channel of this.channels.values()) {
       try {
         if (channel.source) {
           channel.source.onended = null;
           channel.source.stop();
           channel.source.disconnect();
+          channel.source = null;
         }
-        channel.gainNode.disconnect();
       } catch {
         // Safe to ignore
       }
+      channel.buffer = null;
+      channel.status = "idle";
+      channel.startedAt = 0;
+      channel.pausedAt = 0;
+      channel.cueInSeconds = 0;
+      channel.isLooping = false;
+      channel.isMuted = false;
+      channel.volume = 1.0;
+      this.updateGain(channel);
+      this.notify(channel);
     }
-    this.channels.clear();
     logger.info("All audio channels reset and cleared from AudioEngine");
   }
 
@@ -434,6 +449,7 @@ class AudioEngine {
         this.stop(id, fadeMs);
       }
     }
+    this.checkStopTicker();
   }
 
   private updateGain(channel: Channel) {
@@ -477,12 +493,28 @@ class AudioEngine {
     channel.listeners.forEach((fn) => fn(state));
   }
 
+  public checkStopTicker() {
+    if (this.getActivePlayingCount() === 0 && this.tickerId) {
+      cancelAnimationFrame(this.tickerId);
+      this.tickerId = null;
+    }
+  }
+
   private startPlaybackTicker() {
     if (this.tickerId) return;
     let lastTick = 0;
-    const THROTTLE_MS = 80; // 12.5 FPS for timer / progress bar saves 85% CPU & GPU load
+    const THROTTLE_MS = 100; // 10 FPS is plenty for audio progress & time counters, cuts 90% CPU/GPU overhead
 
     const tick = (now: number) => {
+      // If nothing is playing, stop immediately!
+      if (this.getActivePlayingCount() === 0) {
+        if (this.tickerId) {
+          cancelAnimationFrame(this.tickerId);
+          this.tickerId = null;
+        }
+        return;
+      }
+
       if (now - lastTick >= THROTTLE_MS) {
         lastTick = now;
         for (const channel of this.channels.values()) {
