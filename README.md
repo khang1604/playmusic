@@ -50,5 +50,4 @@ Get the latest pre-compiled installers directly from [GitHub Releases v1.0.11](h
 | **Windows** | `.msi` Package | [PlayMusic_1.0.11_x64_en-US.msi](https://github.com/khang1604/playmusic/releases/download/v1.0.11/PlayMusic_1.0.11_x64_en-US.msi) |
 
 ---
-event sound engineers and stage technicians.
 
