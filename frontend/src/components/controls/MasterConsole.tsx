@@ -111,8 +111,9 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
       if (now - lastTick >= FRAME_MS) {
         lastTick = now;
         const raw = audioEngine.getMasterLevels();
-        currentL = raw.left > currentL ? raw.left : currentL * 0.82;
-        currentR = raw.right > currentR ? raw.right : currentR * 0.82;
+        // Studio Ballistic Response: Instant peak attack + Smooth gliding decay (IEC 60268-10 standard)
+        currentL = raw.left > currentL ? raw.left : currentL * 0.92;
+        currentR = raw.right > currentR ? raw.right : currentR * 0.92;
 
         drawColumn(canvasLRef.current, currentL);
         drawColumn(canvasRRef.current, currentR);
