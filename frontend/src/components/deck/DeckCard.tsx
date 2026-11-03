@@ -462,6 +462,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             value={config.volume}
             onChange={handleVolumeChange}
             onWheel={handleWheelVolume}
+            onPointerUp={(e) => e.currentTarget.blur()}
             title={`Gain: ${Math.round(config.volume * 100)}% (Lăn con lăn chuột để tăng/giảm)`}
             className="w-14 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />

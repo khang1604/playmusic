@@ -301,29 +301,33 @@ export const App: React.FC = () => {
   // ArrowUp / ArrowDown control Master Volume.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore when user is typing in form inputs
-      const target = e.target as HTMLElement;
-      if (
+      // Ignore when user is typing in text fields
+      const target = e.target as HTMLInputElement;
+      const isTextInput =
         target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
-      ) {
+        (target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          (target.tagName === "INPUT" &&
+            ["text", "search", "password", "number", "email"].includes(target.type)));
+
+      if (isTextInput) {
         return;
       }
 
-      // Master Volume Keyboard Control
+      // Master Volume Keyboard Control: Arrow Up/Down (5% coarse, Shift+Arrow 1% fine)
       if (e.key === "ArrowUp") {
         e.preventDefault();
+        const delta = e.shiftKey ? 0.01 : 0.05;
         handleMasterVolumeChange(
-          Math.min(1, Math.round((masterVolume + 0.05) * 100) / 100)
+          Math.min(1, Math.round((masterVolume + delta) * 100) / 100)
         );
         return;
       }
       if (e.key === "ArrowDown") {
         e.preventDefault();
+        const delta = e.shiftKey ? 0.01 : 0.05;
         handleMasterVolumeChange(
-          Math.max(0, Math.round((masterVolume - 0.05) * 100) / 100)
+          Math.max(0, Math.round((masterVolume - delta) * 100) / 100)
         );
         return;
       }

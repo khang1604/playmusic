@@ -208,6 +208,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             step="100"
             value={fadeDurationMs}
             onChange={(e) => onFadeDurationChange(parseInt(e.target.value, 10))}
+            onPointerUp={(e) => e.currentTarget.blur()}
             className="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-indigo-500"
           />
         </div>
