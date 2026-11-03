@@ -93,6 +93,24 @@ export async function getAllCachedAudios(): Promise<CachedAudioEntry[]> {
   }
 }
 
+export async function deleteSlotAudio(slotId: number): Promise<void> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      store.delete(slotId);
+      tx.oncomplete = () => {
+        logger.debug(`Deleted cached audio for slot #${slotId}`);
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    logger.warn(`Failed to delete cached audio for slot #${slotId}`, err);
+  }
+}
+
 export async function clearAllSlotAudio(): Promise<void> {
   try {
     const db = await openDB();

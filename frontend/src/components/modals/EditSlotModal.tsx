@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Check } from "lucide-react";
+import { X, Check, Trash2 } from "lucide-react";
 import type { DeckSlotConfig, StageColor } from "../../types";
 
 const STAGE_COLORS: { id: StageColor; name: string; bg: string; border: string }[] = [
@@ -18,13 +18,15 @@ interface EditSlotModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (updated: Partial<DeckSlotConfig>) => void;
+  onDelete?: (slotId: number) => void;
 }
 
 export const EditSlotModal: React.FC<EditSlotModalProps> = ({
   slot,
   isOpen,
   onClose,
-  onSave
+  onSave,
+  onDelete
 }) => {
   const [label, setLabel] = useState(slot.label);
   const [keymap, setKeymap] = useState(slot.keymap);
@@ -131,20 +133,38 @@ export const EditSlotModal: React.FC<EditSlotModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 rounded-lg text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/30 transition-all active:scale-95"
-            >
-              Save Configuration
-            </button>
+          <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-slate-800">
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`Bạn có chắc chắn muốn xóa Slot #${slot.id} (${slot.label}) không?`)) {
+                    onDelete(slot.id);
+                    onClose();
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-900/60 border border-rose-900/50 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Xóa ô này</span>
+              </button>
+            ) : <div />}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-lg text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/30 transition-all active:scale-95 cursor-pointer"
+              >
+                Lưu cài đặt
+              </button>
+            </div>
           </div>
         </form>
       </div>

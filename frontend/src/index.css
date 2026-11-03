@@ -28,3 +28,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #3c425e;
 }
+
+/* Vertical master slider */
+.master-vertical-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 24px;
+  height: 140px;
+  accent-color: #3b82f6;
+}

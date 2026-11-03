@@ -6,7 +6,8 @@ import {
   Repeat,
   Upload,
   Clock,
-  Settings
+  Settings,
+  GripHorizontal
 } from "lucide-react";
 import { audioEngine } from "../../features/audio/audioEngine";
 import { EditSlotModal } from "../modals/EditSlotModal";
@@ -79,13 +80,17 @@ interface DeckCardProps {
   fadeDurationMs: number;
   onUpdateConfig: (updated: Partial<DeckSlotConfig>) => void;
   onBatchDropFiles: (startSlotId: number, files: File[]) => void;
+  onSwapSlots?: (sourceId: number, targetId: number) => void;
+  onDeleteSlot?: (slotId: number) => void;
 }
 
 export const DeckCard: React.FC<DeckCardProps> = ({
   config,
   fadeDurationMs,
   onUpdateConfig,
-  onBatchDropFiles
+  onBatchDropFiles,
+  onSwapSlots,
+  onDeleteSlot
 }) => {
   const [runtime, setRuntime] = useState<DeckRuntimeState>({
     id: config.id,
@@ -97,6 +102,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isReorderOver, setIsReorderOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const colorStyle = COLOR_CLASSES[config.color] || COLOR_CLASSES.slate;
 
@@ -151,6 +157,30 @@ export const DeckCard: React.FC<DeckCardProps> = ({
     onUpdateConfig({ volume: vol });
   };
 
+  // Mouse wheel adjustments
+  const handleWheelSeek = (e: React.WheelEvent) => {
+    if (!runtime.audioBuffer) return;
+    e.stopPropagation();
+    const step = e.shiftKey ? 5 : 2;
+    const delta = e.deltaY < 0 ? step : -step;
+    const nextTime = Math.max(
+      0,
+      Math.min(runtime.audioBuffer.duration, runtime.currentTime + delta)
+    );
+    audioEngine.seek(config.id, nextTime);
+  };
+
+  const handleWheelVolume = (e: React.WheelEvent) => {
+    e.stopPropagation();
+    const delta = e.deltaY < 0 ? 0.05 : -0.05;
+    const nextVol = Math.max(
+      0,
+      Math.min(1, Math.round((config.volume + delta) * 100) / 100)
+    );
+    audioEngine.setVolume(config.id, nextVol);
+    onUpdateConfig({ volume: nextVol });
+  };
+
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!runtime.audioBuffer) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -174,16 +204,48 @@ export const DeckCard: React.FC<DeckCardProps> = ({
   return (
     <>
       <div
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData("application/x-playmusic-slot", `${config.id}`);
+          e.dataTransfer.effectAllowed = "move";
+        }}
         onDragOver={(e) => {
           e.preventDefault();
-          setIsDragOver(true);
+          if (e.dataTransfer.types.includes("application/x-playmusic-slot")) {
+            setIsReorderOver(true);
+          } else if (e.dataTransfer.types.includes("Files")) {
+            setIsDragOver(true);
+          }
         }}
-        onDragLeave={() => setIsDragOver(false)}
-        onDrop={handleFileDrop}
+        onDragLeave={() => {
+          setIsDragOver(false);
+          setIsReorderOver(false);
+        }}
+        onDrop={(e) => {
+          setIsDragOver(false);
+          setIsReorderOver(false);
+          if (e.dataTransfer.types.includes("application/x-playmusic-slot")) {
+            e.preventDefault();
+            e.stopPropagation();
+            const sourceId = parseInt(
+              e.dataTransfer.getData("application/x-playmusic-slot"),
+              10
+            );
+            if (sourceId && sourceId !== config.id) {
+              onSwapSlots?.(sourceId, config.id);
+            }
+          } else {
+            handleFileDrop(e);
+          }
+        }}
         className={`group relative flex flex-col justify-between p-2.5 rounded-xl border transition-all duration-150 select-none ${
           colorStyle.border
         } ${colorStyle.bg} ${
-          isDragOver ? "ring-2 ring-blue-500 scale-[1.02] bg-blue-950/40" : ""
+          isReorderOver
+            ? "ring-2 ring-amber-400 scale-[1.02] bg-amber-950/40"
+            : isDragOver
+            ? "ring-2 ring-blue-500 scale-[1.02] bg-blue-950/40"
+            : ""
         } ${
           isPlaying
             ? "ring-2 ring-emerald-500 shadow-lg shadow-emerald-950/50 bg-slate-900/90"
@@ -201,19 +263,20 @@ export const DeckCard: React.FC<DeckCardProps> = ({
         {/* Top Header Row */}
         <div className="relative z-10 flex items-center justify-between gap-1 mb-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
-            {/* Slot ID Badge */}
+            {/* Slot ID Badge & Reorder Handle */}
             <span
-              className={`px-2 py-0.5 rounded text-[11px] font-black font-mono tracking-wider uppercase shadow-sm ${colorStyle.badge}`}
-              title={`Slot #${config.id}`}
+              className={`px-2 py-0.5 rounded text-[11px] font-black font-mono tracking-wider uppercase shadow-sm flex items-center gap-1 cursor-grab active:cursor-grabbing ${colorStyle.badge}`}
+              title={`Slot #${config.id} - Kéo để đổi vị trí`}
             >
-              #{config.id}
+              <GripHorizontal className="w-2.5 h-2.5 opacity-60" />
+              <span>#{config.id}</span>
             </span>
 
             {/* Custom Label */}
             <span
               className="text-xs font-semibold text-slate-100 truncate cursor-pointer hover:underline"
               onClick={() => setIsEditOpen(true)}
-              title={`${config.label} (Click to edit)`}
+              title={`${config.label} (Click để đổi tên & cài đặt)`}
             >
               {config.label}
             </span>
@@ -241,7 +304,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             {/* Loop Toggle Button */}
             <button
               onClick={toggleLoop}
-              title={config.isLooping ? "Looping Enabled" : "One-Shot Mode"}
+              title={config.isLooping ? "Chế độ lặp vô tận (Looping)" : "Phát một lần (One-shot)"}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                 config.isLooping
                   ? "bg-cyan-950 text-cyan-300 ring-1 ring-cyan-500"
@@ -254,7 +317,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             {/* Edit Slot Settings */}
             <button
               onClick={() => setIsEditOpen(true)}
-              title="Slot settings"
+              title="Cài đặt & Xóa ô"
               className="p-1.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <Settings className="w-3.5 h-3.5" />
@@ -296,10 +359,15 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             </div>
           </div>
 
-          {/* Interactive Seek Bar (Tua nhạc bằng chuột) */}
+          {/* Interactive Seek Bar (Tua nhạc bằng chuột và con lăn wheel) */}
           <div
             onClick={handleSeek}
-            title={runtime.audioBuffer ? "Click hoặc kéo chuột để tua nhanh/chậm" : "Chưa có file audio"}
+            onWheel={handleWheelSeek}
+            title={
+              runtime.audioBuffer
+                ? "Click hoặc lăn con lăn chuột để tua nhanh/chậm"
+                : "Chưa có file audio"
+            }
             className={`group/bar relative w-full h-2 rounded-full overflow-hidden transition-all duration-150 ${
               runtime.audioBuffer
                 ? "bg-slate-800 cursor-pointer hover:h-2.5"
@@ -321,7 +389,10 @@ export const DeckCard: React.FC<DeckCardProps> = ({
               <div
                 className="absolute top-0 bottom-0 w-1 bg-amber-400 shadow-sm"
                 style={{
-                  left: `${Math.min(100, (config.cueInSeconds / runtime.audioBuffer.duration) * 100)}%`
+                  left: `${Math.min(
+                    100,
+                    (config.cueInSeconds / runtime.audioBuffer.duration) * 100
+                  )}%`
                 }}
                 title={`Cue Point: ${config.cueInSeconds}s`}
               />
@@ -329,11 +400,13 @@ export const DeckCard: React.FC<DeckCardProps> = ({
           </div>
         </div>
 
-        {/* Bottom Row: Play/Pause, Stop, Upload, Volume */}
+        {/* Bottom Row: Play/Pause, Stop, Upload, Mini Volume */}
         <div className="relative z-10 flex items-center justify-between gap-1.5 mt-1.5">
           {/* Main Play/Pause Trigger Pad - Directly Shows Assigned Key */}
           <button
-            onClick={() => (!runtime.audioBuffer ? fileInputRef.current?.click() : togglePlay())}
+            onClick={() =>
+              !runtime.audioBuffer ? fileInputRef.current?.click() : togglePlay()
+            }
             title={
               !runtime.audioBuffer
                 ? `Key: [${config.keymap}] - Click to load audio`
@@ -380,7 +453,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             </button>
           )}
 
-          {/* Mini Volume Fader */}
+          {/* Mini Volume Fader (With Wheel Scroll support) */}
           <input
             type="range"
             min="0"
@@ -388,7 +461,8 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             step="0.05"
             value={config.volume}
             onChange={handleVolumeChange}
-            title={`Gain: ${Math.round(config.volume * 100)}%`}
+            onWheel={handleWheelVolume}
+            title={`Gain: ${Math.round(config.volume * 100)}% (Lăn con lăn chuột để tăng/giảm)`}
             className="w-14 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />
 
@@ -409,6 +483,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
         onSave={onUpdateConfig}
+        onDelete={onDeleteSlot}
       />
     </>
   );

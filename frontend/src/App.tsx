@@ -1,25 +1,26 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { UploadCloud, Music } from "lucide-react";
+import { UploadCloud, Music, PlusCircle } from "lucide-react";
 import { DeckCard } from "./components/deck/DeckCard";
 import { MasterConsole } from "./components/controls/MasterConsole";
 import { audioEngine } from "./features/audio/audioEngine";
 import { logger } from "./utils/logger";
 import {
   saveSlotAudio,
-  getSlotAudio
+  getSlotAudio,
+  deleteSlotAudio
 } from "./utils/audioStorage";
 import { EventPresetSchema, type DeckSlotConfig } from "./types";
 
+// Extended 45 keyboard hotkeys
 const DEFAULT_KEYMAPS = [
-  "1", "2", "3", "4", "5", "6",
-  "7", "8", "9", "0", "-", "=",
-  "Q", "W", "E", "R", "T", "Y",
-  "U", "I", "O", "P", "[", "]",
-  "A", "S", "D", "F", "G", "H"
+  "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=",
+  "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]",
+  "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'",
+  "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/"
 ];
 
-function generateDefaultSlots(): DeckSlotConfig[] {
-  return Array.from({ length: 30 }, (_, index) => {
+function generateDefaultSlots(count = 20): DeckSlotConfig[] {
+  return Array.from({ length: count }, (_, index) => {
     const id = index + 1;
     return {
       id,
@@ -107,19 +108,23 @@ export const App: React.FC = () => {
   });
   const [masterVolume, setMasterVolume] = useState(1.0);
   const [fadeDurationMs, setFadeDurationMs] = useState(1000);
+  const [exclusiveMode, setExclusiveMode] = useState(() => {
+    return localStorage.getItem("playmusic_session_exclusive") === "true";
+  });
+
   const [slots, setSlots] = useState<DeckSlotConfig[]>(() => {
     try {
       const saved = localStorage.getItem("playmusic_session_slots");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === 30) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed;
         }
       }
     } catch {
       // Fallback
     }
-    return generateDefaultSlots();
+    return generateDefaultSlots(20);
   });
 
   const [activeCount, setActiveCount] = useState(0);
@@ -150,9 +155,28 @@ export const App: React.FC = () => {
     }
   }, [eventName]);
 
-  // On initial mount: restore audio buffers for any slots that have audio files recorded
+  // Sync exclusiveMode to engine and storage
+  useEffect(() => {
+    audioEngine.setExclusiveMode(exclusiveMode);
+    try {
+      localStorage.setItem("playmusic_session_exclusive", `${exclusiveMode}`);
+    } catch {
+      // Ignore
+    }
+  }, [exclusiveMode]);
+
+  // On initial mount: sync engine and restore audio buffers
   useEffect(() => {
     async function restoreStartupAudio() {
+      // Sync engine parameters
+      slots.forEach((s) => {
+        audioEngine.setCueIn(s.id, s.cueInSeconds);
+        audioEngine.setVolume(s.id, s.volume);
+        audioEngine.setLoop(s.id, s.isLooping);
+      });
+      audioEngine.setMasterVolume(masterVolume);
+      audioEngine.setExclusiveMode(exclusiveMode);
+
       const slotsWithAudio = slots.filter((s) => Boolean(s.fileName));
       if (slotsWithAudio.length === 0) return;
 
@@ -187,18 +211,16 @@ export const App: React.FC = () => {
 
   // Update master volume in engine
   const handleMasterVolumeChange = (vol: number) => {
-    setMasterVolume(vol);
-    audioEngine.setMasterVolume(vol);
+    const clamped = Math.max(0, Math.min(1, vol));
+    setMasterVolume(clamped);
+    audioEngine.setMasterVolume(clamped);
   };
 
-  // Sync engine parameters on initial mount
-  useEffect(() => {
-    slots.forEach((s) => {
-      audioEngine.setCueIn(s.id, s.cueInSeconds);
-      audioEngine.setVolume(s.id, s.volume);
-      audioEngine.setLoop(s.id, s.isLooping);
-    });
-  }, []);
+  // Toggle Exclusive / Polyphonic playback mode
+  const handleToggleExclusiveMode = (enabled: boolean) => {
+    setExclusiveMode(enabled);
+    audioEngine.setExclusiveMode(enabled);
+  };
 
   // Update slot configuration
   const handleUpdateSlot = (slotId: number, updated: Partial<DeckSlotConfig>) => {
@@ -216,12 +238,67 @@ export const App: React.FC = () => {
     }
   };
 
-  // Emergency Panic Stop All
+  // Add new slot manually
+  const handleAddSlot = () => {
+    setSlots((prev) => {
+      const nextId = prev.length > 0 ? Math.max(...prev.map((s) => s.id)) + 1 : 1;
+      const nextKeymap = DEFAULT_KEYMAPS[prev.length] || "";
+      const newSlot: DeckSlotConfig = {
+        id: nextId,
+        keymap: nextKeymap,
+        label: `Slot ${nextId}`,
+        fileName: null,
+        filePath: null,
+        fileUrl: null,
+        durationSeconds: 0,
+        cueInSeconds: 0,
+        volume: 1.0,
+        isMuted: false,
+        isLooping: false,
+        color: "slate"
+      };
+      return [...prev, newSlot];
+    });
+  };
+
+  // Delete a slot
+  const handleDeleteSlot = async (slotId: number) => {
+    audioEngine.stop(slotId, 0);
+    audioEngine.removeChannel(slotId);
+    await deleteSlotAudio(slotId);
+
+    setSlots((prev) => {
+      if (prev.length <= 1) {
+        alert("Bàn điều khiển cần giữ lại ít nhất 1 ô bài hát.");
+        return prev;
+      }
+      return prev.filter((s) => s.id !== slotId);
+    });
+  };
+
+  // Swap / Reorder slots
+  const handleSwapSlots = (sourceId: number, targetId: number) => {
+    setSlots((prev) => {
+      const srcIdx = prev.findIndex((s) => s.id === sourceId);
+      const tgtIdx = prev.findIndex((s) => s.id === targetId);
+      if (srcIdx === -1 || tgtIdx === -1) return prev;
+
+      const next = [...prev];
+      const temp = next[srcIdx];
+      next[srcIdx] = next[tgtIdx];
+      next[tgtIdx] = temp;
+      return next;
+    });
+  };
+
+  // Emergency Panic Stop All (MOUSE CLICK ONLY)
   const handlePanicStop = useCallback(() => {
     audioEngine.panicMuteAll(fadeDurationMs);
   }, [fadeDurationMs]);
 
   // Global Keyboard Event Dispatcher
+  // Space and Escape keys are strictly removed for stage safety!
+  // ArrowUp / ArrowDown control Master Volume.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore when user is typing in form inputs
@@ -235,14 +312,23 @@ export const App: React.FC = () => {
         return;
       }
 
-      // Panic Stop Hotkeys
-      if (e.code === "Space" || e.key === "Escape") {
+      // Master Volume Keyboard Control
+      if (e.key === "ArrowUp") {
         e.preventDefault();
-        handlePanicStop();
+        handleMasterVolumeChange(
+          Math.min(1, Math.round((masterVolume + 0.05) * 100) / 100)
+        );
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        handleMasterVolumeChange(
+          Math.max(0, Math.round((masterVolume - 0.05) * 100) / 100)
+        );
         return;
       }
 
-      // Match slot by keymap
+      // Match slot by hotkey
       const pressedKey = e.key.toUpperCase();
       const matchedSlot = slots.find(
         (s) => s.keymap.toUpperCase() === pressedKey
@@ -257,13 +343,12 @@ export const App: React.FC = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [slots, fadeDurationMs, handlePanicStop]);
+  }, [slots, fadeDurationMs, masterVolume]);
 
   /**
-   * Batch Loads Multiple Audio Files into Slots
-   * Supports:
-   * 1. Smart Relink: Matches dropped files to existing preset slots with matching fileName or label (preserves custom labels & cue points!)
-   * 2. Sequential Population: Loads remaining unmatched files top to bottom starting from startSlotIndex
+   * Batch Loads Multiple Audio Files into Slots with AUTO-EXPANSION
+   * 1. Smart Relink: Matches dropped files to existing preset slots with matching fileName/label
+   * 2. Sequential Population: Loads unmatched files and dynamically expands slots if files exceed capacity
    */
   const handleBatchLoadFiles = async (startSlotIndex: number, rawFiles: File[]) => {
     const audioFiles = rawFiles.filter(
@@ -331,16 +416,40 @@ export const App: React.FC = () => {
       }
     }
 
-    // Step 2: Populate remaining unmatched files sequentially
+    // Step 2: Populate remaining unmatched files sequentially (Auto-Expand slots if needed!)
     if (unmatchedFiles.length > 0) {
-      for (let i = 0; i < unmatchedFiles.length; i++) {
-        const targetIndex = startSlotIndex + i;
-        if (targetIndex >= slots.length) break;
+      const workingSlots = [...slots];
 
+      for (let i = 0; i < unmatchedFiles.length; i++) {
         const file = unmatchedFiles[i];
-        const targetSlot = slots[targetIndex];
         const cleanLabel = file.name.replace(/\.[^/.]+$/, "");
         const filePath = (file as unknown as { path?: string }).path || null;
+        const targetIndex = startSlotIndex + i;
+
+        // Auto-expand: create new slot if index exceeds current count
+        if (targetIndex >= workingSlots.length) {
+          const nextId =
+            workingSlots.length > 0
+              ? Math.max(...workingSlots.map((s) => s.id)) + 1
+              : 1;
+          const nextKeymap = DEFAULT_KEYMAPS[workingSlots.length] || "";
+          workingSlots.push({
+            id: nextId,
+            keymap: nextKeymap,
+            label: cleanLabel,
+            fileName: file.name,
+            filePath,
+            fileUrl: null,
+            durationSeconds: 0,
+            cueInSeconds: 0,
+            volume: 1.0,
+            isMuted: false,
+            isLooping: false,
+            color: "slate"
+          });
+        }
+
+        const targetSlot = workingSlots[targetIndex];
 
         setBatchLoadingProgress({
           current: relinkCount + i + 1,
@@ -351,23 +460,19 @@ export const App: React.FC = () => {
         try {
           const buffer = await audioEngine.loadAudioFile(targetSlot.id, file);
           await saveSlotAudio(targetSlot.id, file);
-          setSlots((prev) =>
-            prev.map((s) =>
-              s.id === targetSlot.id
-                ? {
-                    ...s,
-                    fileName: file.name,
-                    filePath: filePath || s.filePath,
-                    label: cleanLabel,
-                    durationSeconds: buffer.duration
-                  }
-                : s
-            )
-          );
+          workingSlots[targetIndex] = {
+            ...targetSlot,
+            fileName: file.name,
+            filePath: filePath || targetSlot.filePath,
+            label: targetSlot.fileName ? targetSlot.label : cleanLabel,
+            durationSeconds: buffer.duration
+          };
         } catch (err) {
           logger.error(`Lỗi khi nạp file ${file.name} cho slot #${targetSlot.id}`, err);
         }
       }
+
+      setSlots(workingSlots);
     }
 
     setBatchLoadingProgress(null);
@@ -410,7 +515,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // Save Event Preset to JSON file (Supports both Tauri Desktop & Web Browser)
+  // Save Event Preset to JSON file
   const handleSavePreset = async () => {
     try {
       const cleanEventName = eventName.trim() || "PlayMusic Show";
@@ -420,7 +525,8 @@ export const App: React.FC = () => {
         createdAt: new Date().toISOString(),
         slots,
         masterVolume,
-        fadeDurationMs
+        fadeDurationMs,
+        exclusiveMode
       };
 
       const validated = EventPresetSchema.parse(presetData);
@@ -428,7 +534,7 @@ export const App: React.FC = () => {
       const safeName = cleanEventName.toLowerCase().replace(/[^a-z0-9]/gi, "_");
       const filename = `${safeName || "show"}_preset.json`;
 
-      // Check if running inside native Tauri Desktop App
+      // Native Tauri Save
       const isTauri =
         typeof window !== "undefined" &&
         Boolean(
@@ -467,7 +573,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // Load Event Preset from JSON file and automatically restore all audio buffers
+  // Load Event Preset from JSON file
   const handleLoadPreset = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -482,6 +588,8 @@ export const App: React.FC = () => {
         setMasterVolume(parsed.masterVolume);
         audioEngine.setMasterVolume(parsed.masterVolume);
         setFadeDurationMs(parsed.fadeDurationMs);
+        setExclusiveMode(parsed.exclusiveMode);
+        audioEngine.setExclusiveMode(parsed.exclusiveMode);
         setSlots(parsed.slots);
 
         // Update audio engine settings per slot
@@ -557,7 +665,7 @@ export const App: React.FC = () => {
       }
     };
     reader.readAsText(file);
-    e.target.value = ""; // Reset file input
+    e.target.value = "";
   };
 
   return (
@@ -578,14 +686,14 @@ export const App: React.FC = () => {
             Thả các file audio vào đây
           </h2>
           <p className="text-sm text-slate-300 max-w-md text-center">
-            Hệ thống sẽ tự động khớp các bài nhạc vào các ô đã có trong Preset hoặc nạp tiếp nối từ trên xuống dưới (Slot 1 đến 30).
+            Hệ thống sẽ tự động khớp các bài nhạc vào các ô đã có trong Preset, hoặc tự động mở rộng thêm ô mới nếu số lượng file vượt quá số ô hiện tại!
           </p>
         </div>
       )}
 
       {/* Batch Loading Progress Toast */}
       {batchLoadingProgress && (
-        <div className="fixed bottom-12 right-6 z-50 flex items-center gap-3 px-4 py-3 bg-slate-900 border border-blue-500/80 rounded-xl shadow-2xl animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-12 left-6 z-50 flex items-center gap-3 px-4 py-3 bg-slate-900 border border-blue-500/80 rounded-xl shadow-2xl animate-in slide-in-from-bottom-5">
           <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           <div>
             <div className="text-xs font-bold text-white flex items-center gap-2">
@@ -601,49 +709,109 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Master Top Control Console */}
-      <MasterConsole
-        eventName={eventName}
-        onEventNameChange={setEventName}
-        masterVolume={masterVolume}
-        onMasterVolumeChange={handleMasterVolumeChange}
-        fadeDurationMs={fadeDurationMs}
-        onFadeDurationChange={setFadeDurationMs}
-        activeCount={activeCount}
-        onPanicStop={handlePanicStop}
-        onSavePreset={handleSavePreset}
-        onLoadPreset={handleLoadPreset}
-        onBatchAudioFiles={(files) => handleBatchLoadFiles(0, files)}
-      />
-
-      {/* Main 5x6 Launchpad Grid View */}
-      <main className="flex-1 p-3 overflow-y-auto">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 max-w-[1920px] mx-auto">
-          {slots.map((slot) => (
-            <DeckCard
-              key={slot.id}
-              config={slot}
-              fadeDurationMs={fadeDurationMs}
-              onUpdateConfig={(updated) => handleUpdateSlot(slot.id, updated)}
-              onBatchDropFiles={(startId, files) =>
-                handleBatchLoadFiles(startId - 1, files)
-              }
-            />
-          ))}
+      {/* Top Header Row (Logo + Title + Event Name) */}
+      <header className="flex items-center justify-between px-5 py-2.5 bg-slate-950 border-b border-slate-800/80 select-none flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <img
+            src="/logo.svg"
+            alt="PlayMusic Studio Logo"
+            className="w-8 h-8 rounded-lg shadow-lg shadow-blue-500/20 hover:scale-105 transition-transform"
+          />
+          <div>
+            <h1 className="text-sm font-black tracking-wider uppercase bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+              PlayMusic Studio
+            </h1>
+            <p className="text-[10px] text-slate-500 font-mono tracking-tight">
+              LIVE EVENT AUDIO WORKSTATION
+            </p>
+          </div>
         </div>
-      </main>
+
+        {/* Event Name Input */}
+        <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            Show:
+          </span>
+          <input
+            type="text"
+            value={eventName}
+            onChange={(e) => setEventName(e.target.value)}
+            placeholder="Tên sự kiện / Kịch bản show..."
+            className="text-xs font-semibold bg-transparent text-slate-100 focus:outline-none w-56 sm:w-72"
+          />
+        </div>
+      </header>
+
+      {/* Main Workspace: Left 5x4 Grid + Right Master Mixer Column */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left/Center Launchpad Grid (5 columns x 4 rows by default) */}
+        <main className="flex-1 p-3 overflow-y-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 max-w-[1920px] mx-auto">
+            {slots.map((slot) => (
+              <DeckCard
+                key={slot.id}
+                config={slot}
+                fadeDurationMs={fadeDurationMs}
+                onUpdateConfig={(updated) => handleUpdateSlot(slot.id, updated)}
+                onBatchDropFiles={(startId, files) => {
+                  const idx = slots.findIndex((s) => s.id === startId);
+                  handleBatchLoadFiles(idx >= 0 ? idx : 0, files);
+                }}
+                onSwapSlots={handleSwapSlots}
+                onDeleteSlot={handleDeleteSlot}
+              />
+            ))}
+
+            {/* Add Slot Card (End of Grid) */}
+            <button
+              onClick={handleAddSlot}
+              title="Thêm một ô bài hát mới"
+              className="group flex flex-col items-center justify-center min-h-[160px] p-4 rounded-xl border-2 border-dashed border-slate-800 hover:border-blue-500/60 bg-slate-950/40 hover:bg-slate-900/60 transition-all cursor-pointer text-slate-500 hover:text-blue-400"
+            >
+              <div className="w-10 h-10 rounded-full bg-slate-900 group-hover:bg-blue-600/20 flex items-center justify-center mb-2 transition-colors">
+                <PlusCircle className="w-6 h-6" />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wider">
+                + Thêm ô mới
+              </span>
+              <span className="text-[10px] text-slate-600 font-mono mt-0.5">
+                Slot #{slots.length > 0 ? Math.max(...slots.map((s) => s.id)) + 1 : 1}
+              </span>
+            </button>
+          </div>
+        </main>
+
+        {/* Right Master Mixer Console Strip */}
+        <MasterConsole
+          masterVolume={masterVolume}
+          onMasterVolumeChange={handleMasterVolumeChange}
+          fadeDurationMs={fadeDurationMs}
+          onFadeDurationChange={setFadeDurationMs}
+          activeCount={activeCount}
+          totalSlots={slots.length}
+          exclusiveMode={exclusiveMode}
+          onToggleExclusiveMode={handleToggleExclusiveMode}
+          onPanicStop={handlePanicStop}
+          onSavePreset={handleSavePreset}
+          onLoadPreset={handleLoadPreset}
+          onBatchAudioFiles={(files) => handleBatchLoadFiles(slots.length, files)}
+          onAddSlot={handleAddSlot}
+        />
+      </div>
 
       {/* Footer Info Bar */}
-      <footer className="px-5 py-2 bg-slate-950/90 border-t border-slate-900 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-        <div className="flex items-center gap-3">
-          <span>Ubuntu 24.04/26.04 & Windows Native Audio Workstation</span>
+      <footer className="px-5 py-1.5 bg-slate-950 border-t border-slate-900 flex items-center justify-between text-[11px] text-slate-500 font-mono flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span>Ubuntu 24.04/26.04 & Windows Native Audio Shell</span>
           <span>•</span>
-          <span>Kéo thả nhiều file audio vào màn hình để nạp/khớp nhanh</span>
+          <span>Kéo thả file để nạp / Kéo ô để đổi vị trí</span>
         </div>
         <div className="flex items-center gap-3">
-          <span>Hotkeys: Bấm phím để Play/Pause</span>
+          <span>Phím ↑ / ↓: Tăng giảm âm lượng Master</span>
           <span>•</span>
-          <span className="text-rose-400 font-bold">Space/Esc: Panic Stop</span>
+          <span className="text-rose-400 font-semibold">
+            Panic Stop: Click nút đỏ góc phải
+          </span>
         </div>
       </footer>
     </div>

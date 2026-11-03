@@ -20,7 +20,7 @@ export type StageColor = z.infer<typeof StageColorEnum>;
  * Single Deck Slot Configuration Schema (Robust & Permissive for Long Song Titles)
  */
 export const DeckSlotSchema = z.object({
-  id: z.number().int().min(1).max(30),
+  id: z.number().int().min(1),
   keymap: z.string().default(""),
   label: z.string().default("Empty Slot"),
   fileName: z.string().nullable().default(null),
@@ -45,7 +45,8 @@ export const EventPresetSchema = z.object({
   createdAt: z.string().default(() => new Date().toISOString()),
   slots: z.array(DeckSlotSchema),
   masterVolume: z.number().default(1.0),
-  fadeDurationMs: z.number().default(1000)
+  fadeDurationMs: z.number().default(1000),
+  exclusiveMode: z.boolean().default(false)
 });
 
 export type EventPreset = z.infer<typeof EventPresetSchema>;
