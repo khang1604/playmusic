@@ -48,6 +48,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchAudioInputRef = useRef<HTMLInputElement>(null);
+  const faderRef = useRef<HTMLDivElement>(null);
 
   // Real-time VU Meter audio level state
   const [meterLevels, setMeterLevels] = useState<{ left: number; right: number }>({
@@ -92,6 +93,27 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
     const delta = e.deltaY < 0 ? 0.05 : -0.05;
     const next = Math.max(0, Math.min(1, Math.round((masterVolume + delta) * 100) / 100));
     onMasterVolumeChange(next);
+  };
+
+  // Interactive Custom Vertical Fader Pointer Controls
+  const updateFaderFromY = (clientY: number) => {
+    if (!faderRef.current) return;
+    const rect = faderRef.current.getBoundingClientRect();
+    const clampedY = Math.max(rect.top, Math.min(rect.bottom, clientY));
+    const ratio = 1 - (clampedY - rect.top) / rect.height;
+    const next = Math.max(0, Math.min(1, Math.round(ratio * 100) / 100));
+    onMasterVolumeChange(next);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    updateFaderFromY(e.clientY);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.buttons === 1) {
+      updateFaderFromY(e.clientY);
+    }
   };
 
   const leftLitCount = Math.round(meterLevels.left * TOTAL_SEGMENTS);
@@ -197,22 +219,22 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
           </div>
 
           {/* Fader & Dual Stereo VU Meter Section */}
-          <div className="flex items-center justify-center gap-4 py-1">
+          <div className="flex items-center justify-center gap-3.5 py-1 w-full px-2">
             {/* Left Channel VU Meter */}
             <div className="flex flex-col items-center gap-1">
-              <span className="text-[9px] font-mono font-bold text-slate-500">L</span>
-              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3 justify-between">
+              <span className="text-[9px] font-mono font-bold text-slate-400">L</span>
+              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between">
                 {Array.from({ length: TOTAL_SEGMENTS }, (_, idx) => {
                   const isLit = idx < leftLitCount;
-                  let color = "bg-emerald-500 shadow-sm shadow-emerald-500/50";
-                  if (idx >= 12) color = "bg-rose-500 shadow-sm shadow-rose-500/50";
-                  else if (idx >= 9) color = "bg-amber-400 shadow-sm shadow-amber-400/50";
+                  let color = "bg-emerald-400 shadow-xs shadow-emerald-400";
+                  if (idx >= 12) color = "bg-rose-500 shadow-xs shadow-rose-500";
+                  else if (idx >= 9) color = "bg-amber-400 shadow-xs shadow-amber-400";
 
                   return (
                     <div
                       key={idx}
                       className={`w-full h-1.5 rounded-xs transition-opacity duration-75 ${
-                        isLit ? color : "bg-slate-800/40 opacity-20"
+                        isLit ? color : "bg-slate-800/40 opacity-25"
                       }`}
                     />
                   );
@@ -220,35 +242,63 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
               </div>
             </div>
 
-            {/* Vertical Master Volume Slider */}
-            <div className="relative flex flex-col items-center h-36 justify-center">
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={masterVolume}
-                onChange={(e) => onMasterVolumeChange(parseFloat(e.target.value))}
-                className="master-vertical-slider cursor-pointer"
-                title={`Master Volume: ${Math.round(masterVolume * 100)}% (Dùng phím mũi tên ↑ / ↓ hoặc con lăn chuột)`}
-              />
+            {/* Custom Cross-Platform Studio Hardware Vertical Fader */}
+            <div
+              ref={faderRef}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onWheel={handleMasterWheel}
+              title={`Master Volume: ${Math.round(masterVolume * 100)}% (Kéo thả, bấm chuột, lăn con lăn hoặc bấm phím ↑ / ↓)`}
+              className="relative flex flex-col items-center justify-center h-36 w-12 cursor-pointer select-none group/fader touch-none"
+            >
+              {/* Scale dB Markings */}
+              <div className="absolute -left-1 inset-y-2 flex flex-col justify-between text-[7px] font-mono font-bold text-slate-500 pointer-events-none">
+                <span>0dB</span>
+                <span>-6</span>
+                <span>-12</span>
+                <span>-∞</span>
+              </div>
+
+              {/* Fader Track Slot */}
+              <div className="relative w-2.5 h-full bg-slate-950 rounded-full border border-slate-800 shadow-inner overflow-hidden flex flex-col justify-end">
+                {/* Active Level Fill Bar */}
+                <div
+                  className="w-full bg-gradient-to-t from-blue-600 via-cyan-400 to-indigo-400 rounded-full transition-all duration-75"
+                  style={{ height: `${masterVolume * 100}%` }}
+                />
+              </div>
+
+              {/* Hardware Metallic Fader Cap / Knob */}
+              <div
+                className="absolute w-8 h-5 rounded-md bg-gradient-to-b from-slate-100 via-slate-300 to-slate-400 border border-white/90 shadow-md shadow-black/90 flex flex-col items-center justify-center transition-all duration-75 pointer-events-none group-hover/fader:scale-105"
+                style={{
+                  bottom: `calc(${masterVolume * 100}% - 10px)`
+                }}
+              >
+                <div className="w-5 h-0.5 bg-blue-600 rounded-full mb-0.5" />
+                <div className="flex gap-0.5">
+                  <div className="w-0.5 h-1.5 bg-slate-600/70 rounded-xs" />
+                  <div className="w-0.5 h-1.5 bg-slate-600/70 rounded-xs" />
+                  <div className="w-0.5 h-1.5 bg-slate-600/70 rounded-xs" />
+                </div>
+              </div>
             </div>
 
             {/* Right Channel VU Meter */}
             <div className="flex flex-col items-center gap-1">
-              <span className="text-[9px] font-mono font-bold text-slate-500">R</span>
-              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3 justify-between">
+              <span className="text-[9px] font-mono font-bold text-slate-400">R</span>
+              <div className="flex flex-col-reverse gap-0.5 bg-slate-950 p-1 rounded-md border border-slate-800 h-36 w-3.5 justify-between">
                 {Array.from({ length: TOTAL_SEGMENTS }, (_, idx) => {
                   const isLit = idx < rightLitCount;
-                  let color = "bg-emerald-500 shadow-sm shadow-emerald-500/50";
-                  if (idx >= 12) color = "bg-rose-500 shadow-sm shadow-rose-500/50";
-                  else if (idx >= 9) color = "bg-amber-400 shadow-sm shadow-amber-400/50";
+                  let color = "bg-emerald-400 shadow-xs shadow-emerald-400";
+                  if (idx >= 12) color = "bg-rose-500 shadow-xs shadow-rose-500";
+                  else if (idx >= 9) color = "bg-amber-400 shadow-xs shadow-amber-400";
 
                   return (
                     <div
                       key={idx}
                       className={`w-full h-1.5 rounded-xs transition-opacity duration-75 ${
-                        isLit ? color : "bg-slate-800/40 opacity-20"
+                        isLit ? color : "bg-slate-800/40 opacity-25"
                       }`}
                     />
                   );
@@ -257,9 +307,9 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             </div>
           </div>
 
-          <div className="text-[10px] text-slate-500 font-mono mt-2 tracking-tight text-center">
-            Phím tắt: Mũi tên <span className="text-slate-300 font-bold">↑</span> /{" "}
-            <span className="text-slate-300 font-bold">↓</span>
+          <div className="text-[10px] text-slate-400 font-mono mt-2 tracking-tight text-center">
+            Phím tắt: Mũi tên <span className="text-blue-400 font-bold">↑</span> /{" "}
+            <span className="text-blue-400 font-bold">↓</span>
           </div>
         </div>
       </div>

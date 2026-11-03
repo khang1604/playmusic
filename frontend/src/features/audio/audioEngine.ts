@@ -324,22 +324,24 @@ class AudioEngine {
     }
     const dataL = new Uint8Array(this.analyserLeft.frequencyBinCount);
     const dataR = new Uint8Array(this.analyserRight.frequencyBinCount);
-    this.analyserLeft.getByteTimeDomainData(dataL);
-    this.analyserRight.getByteTimeDomainData(dataR);
+    this.analyserLeft.getByteFrequencyData(dataL);
+    this.analyserRight.getByteFrequencyData(dataR);
 
     let sumL = 0;
     let sumR = 0;
     for (let i = 0; i < dataL.length; i++) {
-      const valL = (dataL[i] - 128) / 128;
-      const valR = (dataR[i] - 128) / 128;
-      sumL += valL * valL;
-      sumR += valR * valR;
+      sumL += dataL[i];
+      sumR += dataR[i];
     }
-    const rmsL = Math.sqrt(sumL / dataL.length);
-    const rmsR = Math.sqrt(sumR / dataR.length);
+    const avgL = sumL / (dataL.length * 255);
+    const avgR = sumR / (dataR.length * 255);
+
+    // If right channel is silent (e.g. mono audio file), mirror left channel
+    const finalR = avgR > 0.005 ? avgR : avgL;
+
     return {
-      left: Math.min(1, rmsL * 3.5),
-      right: Math.min(1, rmsR * 3.5)
+      left: Math.min(1, avgL * 2.5),
+      right: Math.min(1, finalR * 2.5)
     };
   }
 
