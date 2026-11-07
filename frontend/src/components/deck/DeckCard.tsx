@@ -292,7 +292,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             handleFileDrop(e);
           }
         }}
-        className={`group relative flex flex-col justify-between p-2.5 rounded-xl border transition-colors duration-100 select-none ${
+        className={`group relative flex flex-col justify-between p-2.5 rounded-xl border transition-colors duration-100 select-none overflow-hidden ${
           colorStyle.border
         } ${colorStyle.bg} ${
           isReorderOver
@@ -487,7 +487,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
               <Square className="w-4 h-4" />
             </button>
 
-            {/* Upload Button - Original Height */}
+            {/* Upload Button */}
             {!runtime.audioBuffer && (
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -499,13 +499,13 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             )}
           </div>
 
-          {/* Right Volume & Mute Control Group */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {/* Individual Mute Button (Original Height, Placed directly before Volume Slider) */}
+          {/* Right Volume & Mute Control Group: Extended 40% Volume Fader */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+            {/* Individual Mute Button */}
             <button
               onClick={toggleMute}
               title={config.isMuted ? "Đang TẮT TIẾNG (Bấm để Bật tiếng)" : "Bấm để Tắt tiếng ô này"}
-              className={`p-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center ${
+              className={`p-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center flex-shrink-0 ${
                 config.isMuted
                   ? "bg-rose-950 text-rose-300 ring-1 ring-rose-500"
                   : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
@@ -518,7 +518,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
               )}
             </button>
 
-            {/* Mini Volume Fader (Extended length ~40% for easier drag & finer control) */}
+            {/* Mini Volume Fader (Flexible responsive length) */}
             <input
               ref={volumeSliderRef}
               type="range"
@@ -529,7 +529,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
               onChange={handleVolumeChange}
               onPointerUp={(e) => e.currentTarget.blur()}
               title={`Gain: ${Math.round(config.volume * 100)}% (Lăn chuột 5%, giữ Shift lăn 1%)`}
-              className="w-20 sm:w-24 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              className="flex-1 min-w-[36px] max-w-[110px] h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
             />
           </div>
 

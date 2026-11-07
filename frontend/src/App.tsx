@@ -1229,11 +1229,11 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Workspace: Left 5x4 Grid + Right Master Mixer Column */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left/Center Launchpad Grid (5 columns x 4 rows by default) */}
-        <main className="flex-1 p-3 overflow-y-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 max-w-[1920px] mx-auto">
+      {/* Main Workspace: Left Responsive Launchpad Grid + Right Master Mixer Column */}
+      <div className="flex flex-1 overflow-hidden min-h-0 min-w-0">
+        {/* Left/Center Launchpad Grid: Option A Container Query auto-responsive (1 to 5 cols) */}
+        <main className="launchpad-container flex-1 p-2.5 sm:p-3 overflow-y-auto min-h-0 min-w-0">
+          <div className="launchpad-grid max-w-[1920px] mx-auto">
             {slots.map((slot) => (
               <DeckCard
                 key={`${sessionKey}-${slot.id}`}
