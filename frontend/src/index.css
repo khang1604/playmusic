@@ -38,39 +38,3 @@ body {
   accent-color: #3b82f6;
 }
 
-/* Responsive Launchpad Grid (Option A: Fluid Container Queries) */
-.launchpad-container {
-  container-type: inline-size;
-}
-
-.launchpad-grid {
-  display: grid;
-  gap: 0.625rem; /* 10px */
-  width: 100%;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-}
-
-@container (min-width: 440px) {
-  .launchpad-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 660px) {
-  .launchpad-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 880px) {
-  .launchpad-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@container (min-width: 1100px) {
-  .launchpad-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
-

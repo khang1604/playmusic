@@ -261,13 +261,19 @@ export const DeckCard: React.FC<DeckCardProps> = ({
         draggable
         onDragStart={(e) => {
           e.dataTransfer.setData("application/x-playmusic-slot", `${config.id}`);
+          e.dataTransfer.setData("text/plain", `${config.id}`);
           e.dataTransfer.effectAllowed = "move";
         }}
         onDragOver={(e) => {
           e.preventDefault();
-          if (e.dataTransfer.types.includes("application/x-playmusic-slot")) {
+          if (
+            e.dataTransfer.types.includes("application/x-playmusic-slot") ||
+            e.dataTransfer.types.includes("text/plain")
+          ) {
+            e.dataTransfer.dropEffect = "move";
             setIsReorderOver(true);
           } else if (e.dataTransfer.types.includes("Files")) {
+            e.dataTransfer.dropEffect = "copy";
             setIsDragOver(true);
           }
         }}
@@ -278,13 +284,13 @@ export const DeckCard: React.FC<DeckCardProps> = ({
         onDrop={(e) => {
           setIsDragOver(false);
           setIsReorderOver(false);
-          if (e.dataTransfer.types.includes("application/x-playmusic-slot")) {
+          const rawId =
+            e.dataTransfer.getData("application/x-playmusic-slot") ||
+            e.dataTransfer.getData("text/plain");
+          if (rawId && !isNaN(parseInt(rawId, 10))) {
             e.preventDefault();
             e.stopPropagation();
-            const sourceId = parseInt(
-              e.dataTransfer.getData("application/x-playmusic-slot"),
-              10
-            );
+            const sourceId = parseInt(rawId, 10);
             if (sourceId && sourceId !== config.id) {
               onSwapSlots?.(sourceId, config.id);
             }

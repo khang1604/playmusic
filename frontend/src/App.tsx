@@ -669,7 +669,11 @@ export const App: React.FC = () => {
   const handleWindowDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     dragCounterRef.current += 1;
-    if (e.dataTransfer.types.includes("Files")) {
+    // Only activate global drop overlay for external files, never for internal slot reordering
+    const isSlotDrag =
+      e.dataTransfer.types.includes("application/x-playmusic-slot");
+    if (e.dataTransfer.types.includes("Files") && !isSlotDrag) {
+      e.dataTransfer.dropEffect = "copy";
       setIsWindowDragOver(true);
     }
   };
@@ -685,6 +689,9 @@ export const App: React.FC = () => {
 
   const handleWindowDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    const isSlotDrag =
+      e.dataTransfer.types.includes("application/x-playmusic-slot");
+    e.dataTransfer.dropEffect = isSlotDrag ? "move" : "copy";
   };
 
   const handleWindowDrop = async (e: React.DragEvent) => {
@@ -1231,9 +1238,9 @@ export const App: React.FC = () => {
 
       {/* Main Workspace: Left Responsive Launchpad Grid + Right Master Mixer Column */}
       <div className="flex flex-1 overflow-hidden min-h-0 min-w-0">
-        {/* Left/Center Launchpad Grid: Option A Container Query auto-responsive (1 to 5 cols) */}
-        <main className="launchpad-container flex-1 p-2.5 sm:p-3 overflow-y-auto min-h-0 min-w-0">
-          <div className="launchpad-grid max-w-[1920px] mx-auto">
+        {/* Left/Center Launchpad Grid: Fluid responsive (1 to 5 cols) */}
+        <main className="flex-1 p-2.5 sm:p-3 overflow-y-auto min-h-0 min-w-0">
+          <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[720px]:grid-cols-3 min-[960px]:grid-cols-4 min-[1200px]:grid-cols-5 gap-2.5 w-full max-w-[1920px] mx-auto">
             {slots.map((slot) => (
               <DeckCard
                 key={`${sessionKey}-${slot.id}`}
