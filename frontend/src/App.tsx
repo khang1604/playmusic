@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { UploadCloud, Music, PlusCircle, RotateCcw, AlertTriangle } from "lucide-react";
+import { UploadCloud, Music, RotateCcw, AlertTriangle } from "lucide-react";
 import { DeckCard } from "./components/deck/DeckCard";
 import { MasterConsole } from "./components/controls/MasterConsole";
 import { audioEngine } from "./features/audio/audioEngine";
@@ -14,12 +14,19 @@ import {
 } from "./utils/audioStorage";
 import { EventPresetSchema, type DeckSlotConfig } from "./types";
 
-// Extended 45 keyboard hotkeys
+// Extended 45 keyboard hotkeys (Numbers + Letters first, symbols only when slots > 36)
 const DEFAULT_KEYMAPS = [
-  "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=",
-  "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]",
-  "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'",
-  "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/"
+  // Row 1 & 2: Digits 1-0 (10 slots)
+  "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+  // Row 3-7: Standard Letters Q-M (26 slots - zero confusing symbols)
+  "Q", "W", "E", "R", "T",
+  "Y", "U", "I", "O", "P",
+  "A", "S", "D", "F", "G",
+  "H", "J", "K", "L", "Z",
+  "X", "C", "V", "B", "N",
+  "M",
+  // Fallback symbols only if user expands beyond 36 slots
+  "-", "=", "[", "]", ";", "'", ",", ".", "/"
 ];
 
 function generateDefaultSlots(count = 20): DeckSlotConfig[] {
@@ -1241,23 +1248,6 @@ export const App: React.FC = () => {
                 onDeleteSlot={handleDeleteSlot}
               />
             ))}
-
-            {/* Add Slot Card (End of Grid) */}
-            <button
-              onClick={handleAddSlot}
-              title="Thêm một ô bài hát mới"
-              className="group flex flex-col items-center justify-center min-h-[160px] p-4 rounded-xl border-2 border-dashed border-slate-800 hover:border-blue-500/60 bg-slate-950/40 hover:bg-slate-900/60 transition-all cursor-pointer text-slate-500 hover:text-blue-400"
-            >
-              <div className="w-10 h-10 rounded-full bg-slate-900 group-hover:bg-blue-600/20 flex items-center justify-center mb-2 transition-colors">
-                <PlusCircle className="w-6 h-6" />
-              </div>
-              <span className="text-xs font-bold uppercase tracking-wider">
-                + Thêm ô mới
-              </span>
-              <span className="text-[10px] text-slate-600 font-mono mt-0.5">
-                Slot #{slots.length > 0 ? Math.max(...slots.map((s) => s.id)) + 1 : 1}
-              </span>
-            </button>
           </div>
         </main>
 

@@ -63,8 +63,62 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchAudioInputRef = useRef<HTMLInputElement>(null);
   const faderRef = useRef<HTMLDivElement>(null);
+  const masterFaderAreaRef = useRef<HTMLDivElement>(null);
+  const fadeAreaRef = useRef<HTMLDivElement>(null);
   const canvasLRef = useRef<HTMLCanvasElement>(null);
   const canvasRRef = useRef<HTMLCanvasElement>(null);
+
+  const masterVolumeRef = useRef(masterVolume);
+  masterVolumeRef.current = masterVolume;
+  const onMasterVolumeChangeRef = useRef(onMasterVolumeChange);
+  onMasterVolumeChangeRef.current = onMasterVolumeChange;
+
+  const fadeDurationRef = useRef(fadeDurationMs);
+  fadeDurationRef.current = fadeDurationMs;
+  const onFadeDurationChangeRef = useRef(onFadeDurationChange);
+  onFadeDurationChangeRef.current = onFadeDurationChange;
+
+  // Non-passive native wheel listener: completely blocks page scroll while adjusting volume smoothly
+  useEffect(() => {
+    const el = masterFaderAreaRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const step = e.shiftKey ? 0.01 : 0.05;
+      const delta = e.deltaY < 0 ? step : -step;
+      const current = masterVolumeRef.current;
+      const next = Math.max(0, Math.min(1, Math.round((current + delta) * 100) / 100));
+      onMasterVolumeChangeRef.current(next);
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, []);
+
+  // Non-passive native wheel listener for Fade Out duration (blocks page scroll, 100ms / 0.1s step)
+  useEffect(() => {
+    const el = fadeAreaRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const step = e.shiftKey ? 50 : 100;
+      const delta = e.deltaY < 0 ? step : -step;
+      const current = fadeDurationRef.current;
+      const next = Math.max(200, Math.min(4000, current + delta));
+      onFadeDurationChangeRef.current(next);
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, []);
 
   // High-Performance 2D Canvas VU Meter: 0 React re-renders, 0 DOM allocations, Sleeps on idle!
   useEffect(() => {
@@ -135,13 +189,6 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
     }
   };
 
-  // Wheel event on Master Volume
-  const handleMasterWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.05 : -0.05;
-    const next = Math.max(0, Math.min(1, Math.round((masterVolume + delta) * 100) / 100));
-    onMasterVolumeChange(next);
-  };
 
   // Interactive Custom Vertical Fader Pointer Controls
   const updateFaderFromY = (clientY: number) => {
@@ -226,8 +273,12 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
           </div>
         </div>
 
-        {/* Fade Duration Slider */}
-        <div className="p-2.5 bg-slate-900/70 rounded-xl border border-slate-800/80">
+        {/* Fade Duration Slider (With Non-Passive Wheel Scroll support) */}
+        <div
+          ref={fadeAreaRef}
+          title={`Fade Out: ${(fadeDurationMs / 1000).toFixed(1)}s (Lăn con lăn chuột để tăng/giảm 0.1s, giữ Shift chỉnh 0.05s)`}
+          className="p-2.5 bg-slate-900/70 rounded-xl border border-slate-800/80 cursor-pointer select-none"
+        >
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Sliders className="w-3.5 h-3.5 text-indigo-400" />
@@ -251,7 +302,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
 
         {/* Middle Group: Vertical Master Fader & Stereo VU Meter */}
         <div
-          onWheel={handleMasterWheel}
+          ref={masterFaderAreaRef}
           className="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col items-center"
         >
           <div className="w-full flex items-center justify-between mb-2.5 px-1">
@@ -297,7 +348,6 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
               ref={faderRef}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
-              onWheel={handleMasterWheel}
               title={`Master Volume: ${Math.round(masterVolume * 100)}% (Kéo thả, bấm chuột, lăn con lăn hoặc bấm phím ↑ / ↓)`}
               className="relative flex flex-col items-center justify-center h-36 w-11 cursor-pointer select-none group/fader touch-none"
             >
@@ -373,19 +423,19 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
         {/* Add Slot Button */}
         <button
           onClick={onAddSlot}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-bold transition-all active:scale-98 cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl text-sm font-bold shadow-md shadow-blue-950/30 transition-all active:scale-98 cursor-pointer min-h-[46px]"
         >
           <PlusCircle className="w-4 h-4 text-blue-400" />
-          <span>+ Thêm ô bài hát</span>
+          <span> Thêm ô bài hát</span>
         </button>
 
         {/* Batch Load Files */}
         <button
           onClick={() => batchAudioInputRef.current?.click()}
           title="Chọn nhiều file nhạc để nạp nhanh"
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
         >
-          <FolderPlus className="w-3.5 h-3.5 text-indigo-400" />
+          <FolderPlus className="w-4 h-4 text-indigo-400" />
           <span>Nạp loạt file nhạc...</span>
         </button>
 
@@ -394,9 +444,9 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
           <button
             onClick={onSavePreset}
             title="Lưu kịch bản show (.json)"
-            className="flex items-center justify-center gap-1.5 px-2.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-2.5 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
           >
-            <Save className="w-3.5 h-3.5 text-emerald-400" />
+            <Save className="w-4 h-4 text-emerald-400" />
             <span>Lưu Preset</span>
           </button>
           <button
@@ -412,9 +462,9 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
               fileInputRef.current?.click();
             }}
             title="Mở file kịch bản (.json)"
-            className="flex items-center justify-center gap-1.5 px-2.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-2.5 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
           >
-            <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+            <FolderOpen className="w-4 h-4 text-amber-400" />
             <span>Mở Preset</span>
           </button>
         </div>
@@ -423,9 +473,9 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
         <button
           onClick={onResetAll}
           title="Làm mới toàn bộ danh sách bài hát để chuẩn bị cho Show mới"
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-cyan-400 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-cyan-300 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
         >
-          <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+          <RotateCcw className="w-4 h-4 text-cyan-400" />
           <span>Tạo Show mới (Reset)</span>
         </button>
 

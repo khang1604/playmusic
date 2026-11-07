@@ -104,7 +104,71 @@ export const DeckCard: React.FC<DeckCardProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isReorderOver, setIsReorderOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const volumeSliderRef = useRef<HTMLInputElement>(null);
+  const seekBarRef = useRef<HTMLDivElement>(null);
+
   const colorStyle = COLOR_CLASSES[config.color] || COLOR_CLASSES.slate;
+
+  const volumeRef = useRef(config.volume);
+  volumeRef.current = config.volume;
+  const slotIdRef = useRef(config.id);
+  slotIdRef.current = config.id;
+  const onUpdateConfigRef = useRef(onUpdateConfig);
+  onUpdateConfigRef.current = onUpdateConfig;
+  const runtimeRef = useRef(runtime);
+  runtimeRef.current = runtime;
+
+  // Non-passive wheel event on Volume Slider (blocks page scroll 100%, 5% step, 1% with Shift)
+  useEffect(() => {
+    const el = volumeSliderRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const step = e.shiftKey ? 0.01 : 0.05;
+      const delta = e.deltaY < 0 ? step : -step;
+      const current = volumeRef.current;
+      const nextVol = Math.max(
+        0,
+        Math.min(1, Math.round((current + delta) * 100) / 100)
+      );
+      audioEngine.setVolume(slotIdRef.current, nextVol);
+      onUpdateConfigRef.current({ volume: nextVol });
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, []);
+
+  // Non-passive wheel event on Seek Bar (blocks page scroll 100%)
+  useEffect(() => {
+    const el = seekBarRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (!runtimeRef.current.audioBuffer) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const step = e.shiftKey ? 5 : 2;
+      const delta = e.deltaY < 0 ? step : -step;
+      const nextTime = Math.max(
+        0,
+        Math.min(
+          runtimeRef.current.audioBuffer.duration,
+          runtimeRef.current.currentTime + delta
+        )
+      );
+      audioEngine.seek(slotIdRef.current, nextTime);
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, []);
 
   useEffect(() => {
     const unsub = audioEngine.subscribe(config.id, (state) => {
@@ -170,29 +234,6 @@ export const DeckCard: React.FC<DeckCardProps> = ({
     onUpdateConfig({ volume: vol });
   };
 
-  // Mouse wheel adjustments
-  const handleWheelSeek = (e: React.WheelEvent) => {
-    if (!runtime.audioBuffer) return;
-    e.stopPropagation();
-    const step = e.shiftKey ? 5 : 2;
-    const delta = e.deltaY < 0 ? step : -step;
-    const nextTime = Math.max(
-      0,
-      Math.min(runtime.audioBuffer.duration, runtime.currentTime + delta)
-    );
-    audioEngine.seek(config.id, nextTime);
-  };
-
-  const handleWheelVolume = (e: React.WheelEvent) => {
-    e.stopPropagation();
-    const delta = e.deltaY < 0 ? 0.05 : -0.05;
-    const nextVol = Math.max(
-      0,
-      Math.min(1, Math.round((config.volume + delta) * 100) / 100)
-    );
-    audioEngine.setVolume(config.id, nextVol);
-    onUpdateConfig({ volume: nextVol });
-  };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!runtime.audioBuffer) return;
@@ -273,69 +314,58 @@ export const DeckCard: React.FC<DeckCardProps> = ({
           />
         )}
 
-        {/* Top Header Row */}
-        <div className="relative z-10 flex items-center justify-between gap-1 mb-1.5">
-          <div className="flex items-center gap-1.5 min-w-0">
-            {/* Slot ID Badge & Reorder Handle */}
-            <span
-              className={`px-2 py-0.5 rounded text-[11px] font-black font-mono tracking-wider uppercase shadow-sm flex items-center gap-1 cursor-grab active:cursor-grabbing ${colorStyle.badge}`}
-              title={`Slot #${config.id} - Kéo để đổi vị trí`}
-            >
-              <GripHorizontal className="w-2.5 h-2.5 opacity-60" />
-              <span>#{config.id}</span>
-            </span>
+        {/* Top Header Row: Slot ID Badge on Left, Loop & Settings on Right (+20% size for clear visibility) */}
+        <div className="relative z-10 flex items-center justify-between gap-1.5 mb-1.5">
+          {/* Slot ID Badge & Reorder Handle */}
+          <span
+            className={`px-2.5 py-1 rounded-md text-xs font-black font-mono tracking-wider uppercase shadow-sm flex items-center gap-1.5 cursor-grab active:cursor-grabbing ${colorStyle.badge}`}
+            title={`Slot #${config.id} - Kéo để đổi vị trí`}
+          >
+            <GripHorizontal className="w-3.5 h-3.5 opacity-70" />
+            <span>#{config.id}</span>
+          </span>
 
-            {/* Custom Label */}
-            <span
-              className="text-xs font-semibold text-slate-100 truncate cursor-pointer hover:underline"
-              onClick={() => setIsEditOpen(true)}
-              title={`${config.label} (Click để đổi tên & cài đặt)`}
-            >
-              {config.label}
-            </span>
-          </div>
-
-          {/* Action Icons */}
-          <div className="flex items-center gap-0.5">
-            {/* Individual Mute Button */}
-            <button
-              onClick={toggleMute}
-              title={config.isMuted ? "Slot is MUTED (Click to Unmute)" : "Click to MUTE slot"}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                config.isMuted
-                  ? "bg-rose-950 text-rose-300 ring-1 ring-rose-500"
-                  : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
-              }`}
-            >
-              {config.isMuted ? (
-                <VolumeX className="w-3.5 h-3.5" />
-              ) : (
-                <Volume2 className="w-3.5 h-3.5" />
-              )}
-            </button>
-
+          {/* Action Icons (Loop & Settings) */}
+          <div className="flex items-center gap-1">
             {/* Loop Toggle Button */}
             <button
               onClick={toggleLoop}
               title={config.isLooping ? "Chế độ lặp vô tận (Looping)" : "Phát một lần (One-shot)"}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              className={`p-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center ${
                 config.isLooping
                   ? "bg-cyan-950 text-cyan-300 ring-1 ring-cyan-500"
                   : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
               }`}
             >
-              <Repeat className="w-3.5 h-3.5" />
+              <Repeat className="w-4 h-4" />
             </button>
 
             {/* Edit Slot Settings */}
             <button
               onClick={() => setIsEditOpen(true)}
               title="Cài đặt & Xóa ô"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer flex items-center justify-center"
             >
-              <Settings className="w-3.5 h-3.5" />
+              <Settings className="w-4 h-4" />
             </button>
           </div>
+        </div>
+
+        {/* Dedicated Track Title Row: 100% full width, 2-line clamp, bold and high-contrast */}
+        <div
+          onClick={() => setIsEditOpen(true)}
+          title={`${config.label} (Click để đổi tên & cài đặt)`}
+          className="relative z-10 w-full min-h-[2.5rem] flex items-center px-1 py-0.5 rounded cursor-pointer group/title hover:bg-slate-800/40 transition-colors mb-1"
+        >
+          <span
+            className={`text-sm font-bold leading-snug line-clamp-2 transition-colors ${
+              config.fileName
+                ? "text-slate-100 group-hover/title:text-blue-300"
+                : "text-slate-500 font-medium italic group-hover/title:text-slate-400"
+            }`}
+          >
+            {config.label || (config.fileName ? config.fileName.replace(/\.[^/.]+$/, "") : "Trống (Click để nạp nhạc)")}
+          </span>
         </div>
 
         {/* Middle Row: Progress Meter, Numerical Cue-in Point & Interactive Seek Scrubber Bar */}
@@ -374,8 +404,8 @@ export const DeckCard: React.FC<DeckCardProps> = ({
 
           {/* Interactive Seek Bar (Tua nhạc bằng chuột và con lăn wheel) */}
           <div
+            ref={seekBarRef}
             onClick={handleSeek}
-            onWheel={handleWheelSeek}
             title={
               runtime.audioBuffer
                 ? "Click hoặc lăn con lăn chuột để tua nhanh/chậm"
@@ -413,72 +443,95 @@ export const DeckCard: React.FC<DeckCardProps> = ({
           </div>
         </div>
 
-        {/* Bottom Row: Play/Pause, Stop, Upload, Mini Volume */}
+        {/* Bottom Row: Play/Pause, Stop, Upload on Left; Mute & Mini Volume on Right */}
         <div className="relative z-10 flex items-center justify-between gap-1.5 mt-1.5">
-          {/* Main Play/Pause Trigger Pad - Directly Shows Assigned Key */}
-          <button
-            onClick={() =>
-              !runtime.audioBuffer ? fileInputRef.current?.click() : togglePlay()
-            }
-            title={
-              !runtime.audioBuffer
-                ? `Key: [${config.keymap}] - Click to load audio`
-                : isPlaying
-                ? `Key: [${config.keymap}] - Click to Pause`
-                : `Key: [${config.keymap}] - Click to Play`
-            }
-            className={`flex-1 flex items-center justify-center py-2 px-3 rounded-lg font-mono font-black tracking-wider transition-all cursor-pointer ${
-              !runtime.audioBuffer
-                ? "bg-slate-800/40 text-slate-500 border border-slate-700/60 hover:bg-slate-800 hover:text-slate-300 text-sm"
-                : isPlaying
-                ? "bg-amber-500 text-black hover:bg-amber-400 shadow-md shadow-amber-950/60 ring-1 ring-amber-300 text-xs"
-                : "bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95 shadow-md shadow-emerald-950/60 ring-1 ring-emerald-400 text-sm"
-            }`}
-          >
-            {isPlaying ? (
-              <span className="flex items-center gap-1.5 font-black">
-                <span>{config.keymap}</span>
-                <span className="text-[10px] font-bold uppercase opacity-85">PAUSE</span>
-              </span>
-            ) : (
-              <span>{config.keymap}</span>
-            )}
-          </button>
-
-          {/* Stop Button */}
-          <button
-            onClick={handleStop}
-            disabled={!runtime.audioBuffer || runtime.status === "idle"}
-            title="Stop Track (Fade Out)"
-            className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/60 hover:text-rose-300 text-slate-400 disabled:opacity-20 disabled:cursor-not-allowed transition-colors cursor-pointer"
-          >
-            <Square className="w-4 h-4" />
-          </button>
-
-          {/* Upload Button */}
-          {!runtime.audioBuffer && (
+          {/* Left Playback Control Group */}
+          <div className="flex items-center gap-1.5">
+            {/* Main Play/Pause Trigger Pad - Original Height (py-2), Controlled Medium Width */}
             <button
-              onClick={() => fileInputRef.current?.click()}
-              title="Load Audio Track"
-              className="p-2 rounded-lg bg-blue-950 hover:bg-blue-900 text-blue-300 border border-blue-800/80 transition-colors cursor-pointer"
+              onClick={() =>
+                !runtime.audioBuffer ? fileInputRef.current?.click() : togglePlay()
+              }
+              title={
+                !runtime.audioBuffer
+                  ? `Key: [${config.keymap}] - Click để nạp nhạc`
+                  : isPlaying
+                  ? `Key: [${config.keymap}] - Click để tạm dừng (Pause)`
+                  : `Key: [${config.keymap}] - Click để phát nhạc`
+              }
+              className={`min-w-[60px] sm:min-w-[68px] py-2 px-3.5 rounded-lg font-mono font-black tracking-wider transition-all cursor-pointer flex items-center justify-center shadow-md select-none ${
+                !runtime.audioBuffer
+                  ? "bg-slate-800/60 text-slate-400 border border-slate-700/80 hover:bg-slate-800 hover:text-slate-200 text-sm"
+                  : isPlaying
+                  ? "bg-amber-400 text-black hover:bg-amber-300 ring-2 ring-amber-200 shadow-amber-950/80 text-xs"
+                  : "bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95 ring-1 ring-emerald-300 shadow-emerald-950/80 text-sm hover:brightness-110"
+              }`}
             >
-              <Upload className="w-4 h-4" />
+              {isPlaying ? (
+                <span className="flex items-center gap-1 font-black">
+                  <span className="text-sm">{config.keymap}</span>
+                  <span className="text-[9px] font-black uppercase opacity-90 tracking-tight">PAUSE</span>
+                </span>
+              ) : (
+                <span className="text-sm font-black">{config.keymap}</span>
+              )}
             </button>
-          )}
 
-          {/* Mini Volume Fader (With Wheel Scroll support) */}
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={config.volume}
-            onChange={handleVolumeChange}
-            onWheel={handleWheelVolume}
-            onPointerUp={(e) => e.currentTarget.blur()}
-            title={`Gain: ${Math.round(config.volume * 100)}% (Lăn con lăn chuột để tăng/giảm)`}
-            className="w-14 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
-          />
+            {/* Stop Button - Original Height */}
+            <button
+              onClick={handleStop}
+              disabled={!runtime.audioBuffer || runtime.status === "idle"}
+              title="Dừng bài (Stop Fade Out)"
+              className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/60 hover:text-rose-300 text-slate-400 disabled:opacity-20 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center flex-shrink-0"
+            >
+              <Square className="w-4 h-4" />
+            </button>
+
+            {/* Upload Button - Original Height */}
+            {!runtime.audioBuffer && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                title="Chọn file âm thanh"
+                className="p-2 rounded-lg bg-blue-950 hover:bg-blue-900 text-blue-300 border border-blue-800/80 transition-colors cursor-pointer flex items-center justify-center flex-shrink-0"
+              >
+                <Upload className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Right Volume & Mute Control Group */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Individual Mute Button (Original Height, Placed directly before Volume Slider) */}
+            <button
+              onClick={toggleMute}
+              title={config.isMuted ? "Đang TẮT TIẾNG (Bấm để Bật tiếng)" : "Bấm để Tắt tiếng ô này"}
+              className={`p-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center ${
+                config.isMuted
+                  ? "bg-rose-950 text-rose-300 ring-1 ring-rose-500"
+                  : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
+              }`}
+            >
+              {config.isMuted ? (
+                <VolumeX className="w-4 h-4" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </button>
+
+            {/* Mini Volume Fader (Extended length ~40% for easier drag & finer control) */}
+            <input
+              ref={volumeSliderRef}
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={config.volume}
+              onChange={handleVolumeChange}
+              onPointerUp={(e) => e.currentTarget.blur()}
+              title={`Gain: ${Math.round(config.volume * 100)}% (Lăn chuột 5%, giữ Shift lăn 1%)`}
+              className="w-20 sm:w-24 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+            />
+          </div>
 
           <input
             ref={fileInputRef}
