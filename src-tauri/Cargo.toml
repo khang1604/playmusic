@@ -1,6 +1,6 @@
 [package]
 name = "playmusic"
-version = "1.0.15"
+version = "1.0.16"
 description = "Live Event Audio Cue & Polyphonic Soundboard Workstation"
 authors = ["PlayMusic Studio Team"]
 edition = "2021"

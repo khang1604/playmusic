@@ -436,7 +436,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
           className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
         >
           <FolderPlus className="w-4 h-4 text-indigo-400" />
-          <span>Nạp loạt file nhạc...</span>
+          <span>Nạp nhiều file nhạc</span>
         </button>
 
         {/* Save & Load Presets */}
@@ -476,7 +476,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
           className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-cyan-300 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
         >
           <RotateCcw className="w-4 h-4 text-cyan-400" />
-          <span>Tạo Show mới (Reset)</span>
+          <span>Tạo Show mới</span>
         </button>
 
         {/* Panic Stop Button - Mouse Click ONLY */}
@@ -486,7 +486,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
           className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-mono font-black text-xs uppercase tracking-wider bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-600 text-white shadow-xl shadow-rose-950/80 ring-2 ring-rose-500/50 hover:ring-rose-400 active:scale-95 transition-all cursor-pointer"
         >
           <AlertOctagon className="w-4 h-4 text-white" />
-          <span>PANIC STOP</span>
+          <span>STOP</span>
         </button>
 
         {/* Hidden File Inputs */}

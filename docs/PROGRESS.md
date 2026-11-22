@@ -1,20 +1,23 @@
 # PLAYMUSIC - PROJECT PROGRESS & MILESTONES
 
 ### Session Status [2026-11-22]
-- **Task:** Retain Audio File Drag-and-Drop & Clean Signature Footer | **State:** Completed & Verified
+- **Task:** Release v1.0.16 - Audio Drag-and-Drop, UI Text Polish & Khangdev Signature | **State:** Released
 - **Active Directory:** `C:\Project\playmusic`
 - **Target OS:** Ubuntu 24.04 / 26.04 LTS & Windows 10/11 (Tauri v2)
 
 ### Milestones & Deliverables
+- [x] **Release v1.0.16 Published:**
+  - Bumped version to `1.0.16` across `package.json`, `frontend/package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `README.md`.
+  - Pushed git tag `v1.0.16` to trigger GitHub Actions CI/CD release workflow (`.github/workflows/release.yml`).
 - [x] **Deck Card Slot Swapping Retired:**
   - Removed `draggable`, grip handles (`::: #id`), and internal slot swapping to preserve muscle memory during live shows.
 - [x] **Audio File Drag-and-Drop Retained & Enhanced:**
   - Dragging audio files onto any individual `DeckCard` loads audio directly into that slot.
   - Dragging audio files into the main window triggers the `UploadCloud` drop overlay and batch-loads/expands slots seamlessly.
   - Native Tauri OS file drop listener (`onDragDropEvent` & `handleNativeDropPaths`) retained and active.
-- [x] **Footer Simplification:**
-  - Single professional signature line: `"Designed & Developed by Khangdev • Professional Live Stage Audio Workstation"`.
-  - Removed legacy text and hotkey helper clutter.
+- [x] **UI Polish & Concise Wording:**
+  - Single professional signature line: `"Developed by Khangdev"`.
+  - Concise button labels: `"STOP"`, `"Nạp nhiều file nhạc..."`, `"Tạo Show mới"`, `"Click để tạm dừng"`, `"Dừng bài"`.
 - [x] **Responsive Container Query Layout (Option A):**
   - Launchpad automatically displays up to 5 columns with fluid card widths (215px–320px).
 

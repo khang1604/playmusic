@@ -425,7 +425,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
                 !runtime.audioBuffer
                   ? `Key: [${config.keymap}] - Click để nạp nhạc`
                   : isPlaying
-                  ? `Key: [${config.keymap}] - Click để tạm dừng (Pause)`
+                  ? `Key: [${config.keymap}] - Click để tạm dừng`
                   : `Key: [${config.keymap}] - Click để phát nhạc`
               }
               className={`min-w-[60px] sm:min-w-[68px] py-2 px-3.5 rounded-lg font-mono font-black tracking-wider transition-all cursor-pointer flex items-center justify-center shadow-md select-none ${
@@ -450,7 +450,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
             <button
               onClick={handleStop}
               disabled={!runtime.audioBuffer || runtime.status === "idle"}
-              title="Dừng bài (Stop Fade Out)"
+              title="Dừng bài"
               className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/60 hover:text-rose-300 text-slate-400 disabled:opacity-20 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center flex-shrink-0"
             >
               <Square className="w-4 h-4" />

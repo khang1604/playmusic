@@ -1261,7 +1261,7 @@ export const App: React.FC = () => {
 
       {/* Footer Signature */}
       <footer className="px-5 py-2 bg-slate-950 border-t border-slate-900/80 flex items-center justify-center text-[11px] text-slate-500 font-mono select-none flex-shrink-0">
-        <span>Designed & Developed by <span className="text-slate-300 font-semibold">Khangdev</span> • Professional Live Stage Audio Workstation</span>
+        <span>Developed by <span className="text-slate-300 font-semibold">Khangdev</span></span>
       </footer>
 
       {/* Reset / New Show Confirmation Modal */}
@@ -1274,7 +1274,7 @@ export const App: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-bold text-white">
-                  Tạo Show mới (Reset toàn bộ)?
+                  Tạo Show mới?
                 </h3>
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                   Thao tác này sẽ dừng toàn bộ âm thanh, dọn sạch dữ liệu bài hát và khôi phục về <span className="text-slate-200 font-semibold">20 ô trống mặc định</span> để bạn setup kịch bản cho show tiếp theo.
