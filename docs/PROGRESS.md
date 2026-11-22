@@ -1,14 +1,14 @@
 # PLAYMUSIC - PROJECT PROGRESS & MILESTONES
 
 ### Session Status [2026-11-22]
-- **Task:** Release v1.0.16 - Audio Drag-and-Drop, UI Text Polish & Khangdev Signature | **State:** Released
+- **Task:** Release v1.0.17 - Audio Drag-and-Drop, UI Text Polish & Khangdev Signature | **State:** Released
 - **Active Directory:** `C:\Project\playmusic`
 - **Target OS:** Ubuntu 24.04 / 26.04 LTS & Windows 10/11 (Tauri v2)
 
 ### Milestones & Deliverables
-- [x] **Release v1.0.16 Published:**
-  - Bumped version to `1.0.16` across `package.json`, `frontend/package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `README.md`.
-  - Pushed git tag `v1.0.16` to trigger GitHub Actions CI/CD release workflow (`.github/workflows/release.yml`).
+- [x] **Release v1.0.17 Published:**
+  - Bumped version to `1.0.17` across `package.json`, `frontend/package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `README.md`.
+  - Pushed git tag `v1.0.17` to trigger GitHub Actions CI/CD release workflow (`.github/workflows/release.yml`).
 - [x] **Deck Card Slot Swapping Retired:**
   - Removed `draggable`, grip handles (`::: #id`), and internal slot swapping to preserve muscle memory during live shows.
 - [x] **Audio File Drag-and-Drop Retained & Enhanced:**
