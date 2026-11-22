@@ -78,7 +78,8 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
   const onFadeDurationChangeRef = useRef(onFadeDurationChange);
   onFadeDurationChangeRef.current = onFadeDurationChange;
 
-  // Non-passive native wheel listener: completely blocks page scroll while adjusting volume smoothly
+  // Non-passive native wheel listener: attached to masterFaderAreaRef (entire fader & VU meter cluster)
+  // so wheeling anywhere on the master strip adjusts volume, while mouse outside scrolls the sidebar freely!
   useEffect(() => {
     const el = masterFaderAreaRef.current;
     if (!el) return;
@@ -98,6 +99,15 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
       el.removeEventListener("wheel", onWheel);
     };
   }, []);
+
+  const handleMasterFaderWheel = (e: React.WheelEvent) => {
+    e.stopPropagation();
+    const step = e.shiftKey ? 0.01 : 0.05;
+    const delta = e.deltaY < 0 ? step : -step;
+    const current = masterVolume;
+    const next = Math.max(0, Math.min(1, Math.round((current + delta) * 100) / 100));
+    onMasterVolumeChange(next);
+  };
 
   // Non-passive native wheel listener for Fade Out duration (blocks page scroll, 100ms / 0.1s step)
   useEffect(() => {
@@ -212,11 +222,11 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
   };
 
   return (
-    <aside className="w-72 bg-slate-950 border-l border-slate-800/90 flex flex-col justify-between p-3.5 shadow-2xl select-none flex-shrink-0 overflow-y-auto">
+    <aside className="master-console-aside w-72 bg-slate-950 border-l border-slate-800/90 flex flex-col justify-between p-3.5 shadow-2xl select-none flex-shrink-0 overflow-y-auto">
       {/* Top Group: Status & Playback Mode */}
-      <div className="space-y-3.5">
+      <div className="top-group space-y-3.5">
         {/* Active Playing Badge */}
-        <div className="flex items-center justify-between px-3 py-2 bg-slate-900/90 rounded-xl border border-slate-800">
+        <div className="status-badge flex items-center justify-between px-3 py-2 bg-slate-900/90 rounded-xl border border-slate-800">
           <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400">
             Trạng thái
           </span>
@@ -235,7 +245,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
         </div>
 
         {/* Playback Mode (Đa âm vs Độc quyền) */}
-        <div className="p-2.5 bg-slate-900/70 rounded-xl border border-slate-800/80">
+        <div className="mode-box p-2.5 bg-slate-900/70 rounded-xl border border-slate-800/80">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
               <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
@@ -277,7 +287,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
         <div
           ref={fadeAreaRef}
           title={`Fade Out: ${(fadeDurationMs / 1000).toFixed(1)}s (Lăn con lăn chuột để tăng/giảm 0.1s, giữ Shift chỉnh 0.05s)`}
-          className="p-2.5 bg-slate-900/70 rounded-xl border border-slate-800/80 cursor-pointer select-none"
+          className="fade-box p-2.5 bg-slate-900/70 rounded-xl border border-slate-800/80 cursor-pointer select-none"
         >
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -301,10 +311,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
         </div>
 
         {/* Middle Group: Vertical Master Fader & Stereo VU Meter */}
-        <div
-          ref={masterFaderAreaRef}
-          className="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col items-center"
-        >
+        <div className="fader-card p-3 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col items-center">
           <div className="w-full flex items-center justify-between mb-2.5 px-1">
             <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1">
               <Volume2 className="w-3.5 h-3.5 text-blue-400" />
@@ -316,7 +323,12 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
           </div>
 
           {/* Fader & Dual Stereo VU Meter Section with Dual dB Scales */}
-          <div className="flex items-center justify-center gap-2 py-1 w-full px-1">
+          <div
+            ref={masterFaderAreaRef}
+            onWheel={handleMasterFaderWheel}
+            title={`Master Volume: ${Math.round(masterVolume * 100)}% (Lăn con lăn chuột, kéo thả hoặc bấm phím ↑ / ↓)`}
+            className="flex items-center justify-center gap-2 py-1 w-full px-1 cursor-pointer select-none"
+          >
             {/* Left dB Scale */}
             <div className="flex flex-col items-end gap-1 select-none pointer-events-none">
               <span className="text-[9px] font-mono font-bold text-slate-500">dB</span>
@@ -333,13 +345,13 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             </div>
 
             {/* Left Channel Canvas VU Meter */}
-            <div className="flex flex-col items-center gap-1">
+            <div className="flex flex-col items-center gap-1 pointer-events-none">
               <span className="text-[9px] font-mono font-bold text-slate-300">L</span>
               <canvas
                 ref={canvasLRef}
                 width={14}
                 height={144}
-                className="bg-slate-950 rounded-md border border-slate-800 h-36 w-3.5 shadow-inner"
+                className="bg-slate-950 rounded-md border border-slate-800 h-36 w-3.5 shadow-inner pointer-events-none"
               />
             </div>
 
@@ -348,7 +360,6 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
               ref={faderRef}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
-              title={`Master Volume: ${Math.round(masterVolume * 100)}% (Kéo thả, bấm chuột, lăn con lăn hoặc bấm phím ↑ / ↓)`}
               className="relative flex flex-col items-center justify-center h-36 w-11 cursor-pointer select-none group/fader touch-none"
             >
               {/* Center Reference Ticks */}
@@ -385,13 +396,13 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             </div>
 
             {/* Right Channel Canvas VU Meter */}
-            <div className="flex flex-col items-center gap-1">
+            <div className="flex flex-col items-center gap-1 pointer-events-none">
               <span className="text-[9px] font-mono font-bold text-slate-300">R</span>
               <canvas
                 ref={canvasRRef}
                 width={14}
                 height={144}
-                className="bg-slate-950 rounded-md border border-slate-800 h-36 w-3.5 shadow-inner"
+                className="bg-slate-950 rounded-md border border-slate-800 h-36 w-3.5 shadow-inner pointer-events-none"
               />
             </div>
 
@@ -411,7 +422,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             </div>
           </div>
 
-          <div className="text-[10px] text-slate-400 font-mono mt-2 tracking-tight text-center">
+          <div className="fader-shortcut-hint text-[10px] text-slate-400 font-mono mt-2 tracking-tight text-center">
             Phím tắt: Mũi tên <span className="text-blue-400 font-bold">↑</span> /{" "}
             <span className="text-blue-400 font-bold">↓</span>
           </div>
@@ -419,11 +430,11 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
       </div>
 
       {/* Action Tools & Bottom Panic Stop */}
-      <div className="space-y-2.5 pt-3 border-t border-slate-800/80">
+      <div className="bottom-group space-y-2.5 pt-3 border-t border-slate-800/80">
         {/* Add Slot Button */}
         <button
           onClick={onAddSlot}
-          className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl text-sm font-bold shadow-md shadow-blue-950/30 transition-all active:scale-98 cursor-pointer min-h-[46px]"
+          className="bottom-action-btn w-full flex items-center justify-center gap-2 px-3 py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl text-sm font-bold shadow-md shadow-blue-950/30 transition-all active:scale-98 cursor-pointer min-h-[46px]"
         >
           <PlusCircle className="w-4 h-4 text-blue-400" />
           <span> Thêm ô bài hát</span>
@@ -433,7 +444,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
         <button
           onClick={() => batchAudioInputRef.current?.click()}
           title="Chọn nhiều file nhạc để nạp nhanh"
-          className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
+          className="bottom-action-btn w-full flex items-center justify-center gap-2 px-3 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
         >
           <FolderPlus className="w-4 h-4 text-indigo-400" />
           <span>Nạp nhiều file nhạc</span>
@@ -444,7 +455,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
           <button
             onClick={onSavePreset}
             title="Lưu kịch bản show (.json)"
-            className="flex items-center justify-center gap-1.5 px-2.5 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
+            className="bottom-action-btn flex items-center justify-center gap-1.5 px-2.5 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
           >
             <Save className="w-4 h-4 text-emerald-400" />
             <span>Lưu Preset</span>
@@ -462,7 +473,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
               fileInputRef.current?.click();
             }}
             title="Mở file kịch bản (.json)"
-            className="flex items-center justify-center gap-1.5 px-2.5 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
+            className="bottom-action-btn flex items-center justify-center gap-1.5 px-2.5 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
           >
             <FolderOpen className="w-4 h-4 text-amber-400" />
             <span>Mở Preset</span>
@@ -473,7 +484,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
         <button
           onClick={onResetAll}
           title="Làm mới toàn bộ danh sách bài hát để chuẩn bị cho Show mới"
-          className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-cyan-300 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
+          className="bottom-action-btn w-full flex items-center justify-center gap-2 px-3 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-cyan-300 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer min-h-[46px]"
         >
           <RotateCcw className="w-4 h-4 text-cyan-400" />
           <span>Tạo Show mới</span>
@@ -483,7 +494,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
         <button
           onClick={onPanicStop}
           title="Dừng toàn bộ bài hát trên sân khấu (Chỉ kích hoạt bằng click chuột)"
-          className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-mono font-black text-xs uppercase tracking-wider bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-600 text-white shadow-xl shadow-rose-950/80 ring-2 ring-rose-500/50 hover:ring-rose-400 active:scale-95 transition-all cursor-pointer"
+          className="bottom-stop-btn w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-mono font-black text-xs uppercase tracking-wider bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-600 text-white shadow-xl shadow-rose-950/80 ring-2 ring-rose-500/50 hover:ring-rose-400 active:scale-95 transition-all cursor-pointer min-h-[46px]"
         >
           <AlertOctagon className="w-4 h-4 text-white" />
           <span>STOP</span>

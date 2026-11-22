@@ -38,15 +38,15 @@ Khác với các trình phát nhạc thông thường (chỉ mở được từn
 
 ---
 
-## 📥 Tải về & Cài đặt / Downloads (Latest Release v1.0.17)
+## 📥 Tải về & Cài đặt / Downloads (Latest Release v1.0.18)
 
-Get the latest pre-compiled installers directly from [GitHub Releases v1.0.17](https://github.com/khang1604/playmusic/releases/tag/v1.0.17):
+Get the latest pre-compiled installers directly from [GitHub Releases v1.0.18](https://github.com/khang1604/playmusic/releases/tag/v1.0.18):
 
 | Platform | Format | Download Link |
 | :--- | :--- | :--- |
-| **Ubuntu Linux** | `.deb` (Recommended) | [PlayMusic_1.0.17_amd64.deb](https://github.com/khang1604/playmusic/releases/download/v1.0.17/PlayMusic_1.0.17_amd64.deb) |
-| **Linux Portable** | `.AppImage` (Run anywhere) | [PlayMusic_1.0.17_amd64.AppImage](https://github.com/khang1604/playmusic/releases/download/v1.0.17/PlayMusic_1.0.17_amd64.AppImage) |
-| **Windows** | `.exe` Setup | [PlayMusic_1.0.17_x64-setup.exe](https://github.com/khang1604/playmusic/releases/download/v1.0.17/PlayMusic_1.0.17_x64-setup.exe) |
-| **Windows** | `.msi` Package | [PlayMusic_1.0.17_x64_en-US.msi](https://github.com/khang1604/playmusic/releases/download/v1.0.17/PlayMusic_1.0.17_x64_en-US.msi) |
+| **Ubuntu Linux** | `.deb` (Recommended) | [PlayMusic_1.0.18_amd64.deb](https://github.com/khang1604/playmusic/releases/download/v1.0.18/PlayMusic_1.0.18_amd64.deb) |
+| **Linux Portable** | `.AppImage` (Run anywhere) | [PlayMusic_1.0.18_amd64.AppImage](https://github.com/khang1604/playmusic/releases/download/v1.0.18/PlayMusic_1.0.18_amd64.AppImage) |
+| **Windows** | `.exe` Setup | [PlayMusic_1.0.18_x64-setup.exe](https://github.com/khang1604/playmusic/releases/download/v1.0.18/PlayMusic_1.0.18_x64-setup.exe) |
+| **Windows** | `.msi` Package | [PlayMusic_1.0.18_x64_en-US.msi](https://github.com/khang1604/playmusic/releases/download/v1.0.18/PlayMusic_1.0.18_x64_en-US.msi) |
 
 ---

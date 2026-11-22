@@ -74,3 +74,67 @@ body {
   }
 }
 
+/* Compact Master Console adjustments for Laptop screens (viewport height <= 740px) */
+/* Large screens (> 740px) remain 100% untouched at original spacious hardware layout */
+@media (max-height: 740px) {
+  .app-header {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+
+  .app-footer {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+
+  .master-console-aside {
+    padding: 0.625rem !important; /* 10px */
+  }
+
+  .master-console-aside .top-group > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.5rem !important; /* 8px */
+  }
+
+  .master-console-aside .status-badge {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+
+  .master-console-aside .mode-box {
+    padding: 0.5rem !important;
+  }
+
+  .master-console-aside .fade-box {
+    padding: 0.375rem 0.5rem !important;
+  }
+
+  .master-console-aside .fader-card {
+    padding: 0.5rem 0.375rem !important;
+  }
+
+  .master-console-aside .fader-shortcut-hint {
+    margin-top: 0.25rem !important;
+  }
+
+  .master-console-aside .bottom-group {
+    padding-top: 0.5rem !important;
+  }
+
+  .master-console-aside .bottom-group > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.375rem !important; /* 6px */
+  }
+
+  .master-console-aside .bottom-action-btn {
+    min-height: 36px !important;
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+
+  .master-console-aside .bottom-stop-btn {
+    min-height: 40px !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+}
+
+

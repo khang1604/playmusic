@@ -1,14 +1,21 @@
 # PLAYMUSIC - PROJECT PROGRESS & MILESTONES
 
 ### Session Status [2026-11-22]
-- **Task:** Release v1.0.17 - Audio Drag-and-Drop, UI Text Polish & Khangdev Signature | **State:** Released
+- **Task:** Release v1.0.18 - Master Console Responsive Optimization & Smooth Wheel Scroll | **State:** Released
 - **Active Directory:** `C:\Project\playmusic`
 - **Target OS:** Ubuntu 24.04 / 26.04 LTS & Windows 10/11 (Tauri v2)
 
 ### Milestones & Deliverables
-- [x] **Release v1.0.17 Published:**
-  - Bumped version to `1.0.17` across `package.json`, `frontend/package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `README.md`.
-  - Pushed git tag `v1.0.17` to trigger GitHub Actions CI/CD release workflow (`.github/workflows/release.yml`).
+- [x] **Release v1.0.18 Published:**
+  - Bumped version to `1.0.18` across `package.json`, `frontend/package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `README.md`.
+  - Pushed git tag `v1.0.18` to trigger GitHub Actions CI/CD release workflow (`.github/workflows/release.yml`).
+- [x] **Master Console Responsive Layout for Laptops (<= 740px):**
+  - Preserved 100% original spacious hardware dimensions on large desktop displays (> 740px).
+  - Compacted bottom button strip (36px, stop 40px) and padding on screens <= 740px to fit laptop screens without clipping.
+  - Kept Fader and VU Meters fixed at 144px to eliminate canvas/dB mark desynchronization.
+- [x] **Master Volume & Sidebar Mouse Wheel Isolation:**
+  - Expanded wheel sensitivity to the full Master instrument cluster (`[dB] + [VU L] + [Fader] + [VU R] + [dB]`) with dual native and synthetic event handling.
+  - Isolated wheel volume adjustment so placing mouse cursor anywhere outside the fader cluster allows free, natural scrolling of the sidebar and page.
 - [x] **Deck Card Slot Swapping Retired:**
   - Removed `draggable`, grip handles (`::: #id`), and internal slot swapping to preserve muscle memory during live shows.
 - [x] **Audio File Drag-and-Drop Retained & Enhanced:**

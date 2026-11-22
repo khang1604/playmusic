@@ -1183,7 +1183,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Top Header Row (Logo + Title + Event Name) */}
-      <header className="flex items-center justify-between px-5 py-2.5 bg-slate-950 border-b border-slate-800/80 select-none flex-shrink-0">
+      <header className="app-header flex items-center justify-between px-5 py-2.5 bg-slate-950 border-b border-slate-800/80 select-none flex-shrink-0">
         <div className="flex items-center gap-3">
           <img
             src="/logo.svg"
@@ -1260,7 +1260,7 @@ export const App: React.FC = () => {
       </div>
 
       {/* Footer Signature */}
-      <footer className="px-5 py-2 bg-slate-950 border-t border-slate-900/80 flex items-center justify-center text-[11px] text-slate-500 font-mono select-none flex-shrink-0">
+      <footer className="app-footer px-5 py-2 bg-slate-950 border-t border-slate-900/80 flex items-center justify-center text-[11px] text-slate-500 font-mono select-none flex-shrink-0">
         <span>Developed by <span className="text-slate-300 font-semibold">Khangdev</span></span>
       </footer>
 
