@@ -6,8 +6,7 @@ import {
   Repeat,
   Upload,
   Clock,
-  Settings,
-  GripHorizontal
+  Settings
 } from "lucide-react";
 import { audioEngine } from "../../features/audio/audioEngine";
 import { EditSlotModal } from "../modals/EditSlotModal";
@@ -80,7 +79,6 @@ interface DeckCardProps {
   fadeDurationMs: number;
   onUpdateConfig: (updated: Partial<DeckSlotConfig>) => void;
   onBatchDropFiles: (startSlotId: number, files: File[]) => void;
-  onSwapSlots?: (sourceId: number, targetId: number) => void;
   onDeleteSlot?: (slotId: number) => void;
 }
 
@@ -89,7 +87,6 @@ export const DeckCard: React.FC<DeckCardProps> = ({
   fadeDurationMs,
   onUpdateConfig,
   onBatchDropFiles,
-  onSwapSlots,
   onDeleteSlot
 }) => {
   const [runtime, setRuntime] = useState<DeckRuntimeState>({
@@ -101,8 +98,6 @@ export const DeckCard: React.FC<DeckCardProps> = ({
   });
 
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [isReorderOver, setIsReorderOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const volumeSliderRef = useRef<HTMLInputElement>(null);
   const seekBarRef = useRef<HTMLDivElement>(null);
@@ -190,16 +185,6 @@ export const DeckCard: React.FC<DeckCardProps> = ({
     }
   }, [config.fileName, config.cueInSeconds, config.id]);
 
-  const handleFileDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const files = Array.from(e.dataTransfer.files);
-      onBatchDropFiles(config.id, files);
-    }
-  };
-
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files);
@@ -258,49 +243,9 @@ export const DeckCard: React.FC<DeckCardProps> = ({
   return (
     <>
       <div
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.setData("application/x-playmusic-slot", `${config.id}`);
-          e.dataTransfer.effectAllowed = "move";
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          if (e.dataTransfer.types.includes("application/x-playmusic-slot")) {
-            setIsReorderOver(true);
-          } else if (e.dataTransfer.types.includes("Files")) {
-            setIsDragOver(true);
-          }
-        }}
-        onDragLeave={() => {
-          setIsDragOver(false);
-          setIsReorderOver(false);
-        }}
-        onDrop={(e) => {
-          setIsDragOver(false);
-          setIsReorderOver(false);
-          if (e.dataTransfer.types.includes("application/x-playmusic-slot")) {
-            e.preventDefault();
-            e.stopPropagation();
-            const sourceId = parseInt(
-              e.dataTransfer.getData("application/x-playmusic-slot"),
-              10
-            );
-            if (sourceId && sourceId !== config.id) {
-              onSwapSlots?.(sourceId, config.id);
-            }
-          } else {
-            handleFileDrop(e);
-          }
-        }}
         className={`group relative flex flex-col justify-between p-2.5 rounded-xl border transition-colors duration-100 select-none overflow-hidden ${
           colorStyle.border
         } ${colorStyle.bg} ${
-          isReorderOver
-            ? "ring-2 ring-amber-400 scale-[1.02] bg-amber-950/40"
-            : isDragOver
-            ? "ring-2 ring-blue-500 scale-[1.02] bg-blue-950/40"
-            : ""
-        } ${
           isPlaying
             ? "ring-2 ring-emerald-500 shadow-lg shadow-emerald-950/50 bg-slate-900/90"
             : "hover:bg-slate-900/80"
@@ -316,12 +261,11 @@ export const DeckCard: React.FC<DeckCardProps> = ({
 
         {/* Top Header Row: Slot ID Badge on Left, Loop & Settings on Right (+20% size for clear visibility) */}
         <div className="relative z-10 flex items-center justify-between gap-1.5 mb-1.5">
-          {/* Slot ID Badge & Reorder Handle */}
+          {/* Slot ID Badge */}
           <span
-            className={`px-2.5 py-1 rounded-md text-xs font-black font-mono tracking-wider uppercase shadow-sm flex items-center gap-1.5 cursor-grab active:cursor-grabbing ${colorStyle.badge}`}
-            title={`Slot #${config.id} - Kéo để đổi vị trí`}
+            className={`px-2.5 py-1 rounded-md text-xs font-black font-mono tracking-wider uppercase shadow-sm flex items-center ${colorStyle.badge}`}
+            title={`Slot #${config.id}`}
           >
-            <GripHorizontal className="w-3.5 h-3.5 opacity-70" />
             <span>#{config.id}</span>
           </span>
 
