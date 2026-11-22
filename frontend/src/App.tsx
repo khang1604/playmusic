@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Music, RotateCcw, AlertTriangle } from "lucide-react";
+import { UploadCloud, Music, RotateCcw, AlertTriangle } from "lucide-react";
 import { DeckCard } from "./components/deck/DeckCard";
 import { MasterConsole } from "./components/controls/MasterConsole";
 import { audioEngine } from "./features/audio/audioEngine";
@@ -171,6 +171,7 @@ export const App: React.FC = () => {
   });
 
   const [activeCount, setActiveCount] = useState(0);
+  const [isWindowDragOver, setIsWindowDragOver] = useState(false);
   const [batchLoadingProgress, setBatchLoadingProgress] = useState<{
     current: number;
     total: number;
@@ -179,6 +180,7 @@ export const App: React.FC = () => {
   const [showResetModal, setShowResetModal] = useState(false);
   const [sessionKey, setSessionKey] = useState(0);
 
+  const dragCounterRef = useRef(0);
   const relinkAudioInputRef = useRef<HTMLInputElement>(null);
 
   // Sync slots to localStorage
@@ -514,6 +516,173 @@ export const App: React.FC = () => {
 
     if (relinkCount > 0) {
       logger.info(`Đã tự động khớp lại ${relinkCount} bài nhạc vào đúng preset slots.`);
+    }
+  };
+
+  // Handle Native OS File Paths dropped onto the Tauri Window
+  const handleNativeDropPaths = async (paths: string[]) => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const audioExtensions = [".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac"];
+      const audioPaths = paths.filter((p) => {
+        const lower = p.toLowerCase();
+        return audioExtensions.some((ext) => lower.endsWith(ext));
+      });
+
+      if (audioPaths.length === 0) return;
+
+      const workingSlots = [...slots];
+      const firstEmptyIdx = workingSlots.findIndex((s) => !s.fileName);
+      const startIdx = firstEmptyIdx >= 0 ? firstEmptyIdx : 0;
+
+      setBatchLoadingProgress({
+        current: 0,
+        total: audioPaths.length,
+        fileName: "Đang nạp file từ máy tính..."
+      });
+
+      for (let i = 0; i < audioPaths.length; i++) {
+        const filePath = audioPaths[i];
+        const fileName = filePath.split(/[/\\]/).pop() || `Track_${i + 1}`;
+        const cleanLabel = fileName.replace(/\.[^/.]+$/, "");
+        const targetIndex = startIdx + i;
+
+        if (targetIndex >= workingSlots.length) {
+          const nextId =
+            workingSlots.length > 0
+              ? Math.max(...workingSlots.map((s) => s.id)) + 1
+              : 1;
+          const nextKeymap = DEFAULT_KEYMAPS[workingSlots.length] || "";
+          workingSlots.push({
+            id: nextId,
+            keymap: nextKeymap,
+            label: cleanLabel,
+            fileName,
+            filePath,
+            fileUrl: null,
+            audioBase64: null,
+            durationSeconds: 0,
+            cueInSeconds: 0,
+            volume: 1.0,
+            isMuted: false,
+            isLooping: false,
+            color: "slate"
+          });
+        }
+
+        const targetSlot = workingSlots[targetIndex];
+
+        setBatchLoadingProgress({
+          current: i + 1,
+          total: audioPaths.length,
+          fileName
+        });
+
+        try {
+          const bytes = await invoke<number[] | Uint8Array>("read_audio_file", {
+            filePath
+          });
+          const uint8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+          const arrayBuf = (uint8.buffer.slice(
+            uint8.byteOffset,
+            uint8.byteOffset + uint8.byteLength
+          ) as unknown) as ArrayBuffer;
+
+          const buffer = await audioEngine.loadAudioBuffer(
+            targetSlot.id,
+            arrayBuf,
+            fileName
+          );
+          const blob = new Blob([arrayBuf]);
+          await saveSlotAudio(targetSlot.id, blob, fileName);
+
+          workingSlots[targetIndex] = {
+            ...targetSlot,
+            fileName,
+            filePath,
+            label: targetSlot.fileName ? targetSlot.label : cleanLabel,
+            durationSeconds: buffer.duration
+          };
+        } catch (err) {
+          logger.error(`Lỗi khi nạp file ${filePath}`, err);
+        }
+      }
+
+      setSlots(workingSlots);
+      setBatchLoadingProgress(null);
+    } catch (err) {
+      logger.error("Native drop handler error", err);
+      setBatchLoadingProgress(null);
+    }
+  };
+
+  // Listen for native OS drag and drop on Tauri window
+  useEffect(() => {
+    const isTauri =
+      typeof window !== "undefined" &&
+      Boolean(
+        (window as unknown as { __TAURI_INTERNALS__?: unknown })
+          .__TAURI_INTERNALS__
+      );
+    if (!isTauri) return;
+
+    let unlisten: (() => void) | undefined;
+    async function setupTauriDrop() {
+      try {
+        const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+        const appWindow = getCurrentWebviewWindow();
+        unlisten = await appWindow.onDragDropEvent(async (event) => {
+          if (event.payload.type === "drop") {
+            const paths = event.payload.paths;
+            if (paths && paths.length > 0) {
+              await handleNativeDropPaths(paths);
+            }
+          }
+        });
+      } catch (err) {
+        logger.debug("Tauri drag-drop listener could not be registered", err);
+      }
+    }
+
+    setupTauriDrop();
+    return () => {
+      unlisten?.();
+    };
+  }, [slots]);
+
+  // Window Drag & Drop Listeners
+  const handleWindowDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.types.includes("Files")) {
+      e.dataTransfer.dropEffect = "copy";
+      setIsWindowDragOver(true);
+    }
+  };
+
+  const handleWindowDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsWindowDragOver(false);
+    }
+  };
+
+  const handleWindowDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleWindowDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsWindowDragOver(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      const firstEmptyIdx = slots.findIndex((s) => !s.fileName);
+      await handleBatchLoadFiles(firstEmptyIdx >= 0 ? firstEmptyIdx : 0, files);
     }
   };
 
@@ -974,7 +1143,27 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="relative flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans select-none">
+    <div
+      onDragEnter={handleWindowDragEnter}
+      onDragLeave={handleWindowDragLeave}
+      onDragOver={handleWindowDragOver}
+      onDrop={handleWindowDrop}
+      className="relative flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans select-none"
+    >
+      {/* Global Drag & Drop Overlay */}
+      {isWindowDragOver && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md border-4 border-dashed border-blue-500 m-3 rounded-2xl pointer-events-none animate-in fade-in duration-150">
+          <div className="w-20 h-20 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-400 mb-4">
+            <UploadCloud className="w-10 h-10" />
+          </div>
+          <h2 className="text-xl font-black uppercase tracking-wider text-white mb-2">
+            Thả các file audio vào đây
+          </h2>
+          <p className="text-sm text-slate-300 max-w-md text-center">
+            Hệ thống sẽ tự động khớp các bài nhạc vào các ô đã có trong Preset, hoặc tự động mở rộng thêm ô mới nếu số lượng file vượt quá số ô hiện tại!
+          </p>
+        </div>
+      )}
       {/* Batch Loading Progress Toast */}
       {batchLoadingProgress && (
         <div className="fixed bottom-12 left-6 z-50 flex items-center gap-3 px-4 py-3 bg-slate-900 border border-blue-500/80 rounded-xl shadow-2xl animate-in slide-in-from-bottom-5">

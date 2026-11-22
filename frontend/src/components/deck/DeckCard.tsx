@@ -98,6 +98,7 @@ export const DeckCard: React.FC<DeckCardProps> = ({
   });
 
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const volumeSliderRef = useRef<HTMLInputElement>(null);
   const seekBarRef = useRef<HTMLDivElement>(null);
@@ -243,9 +244,33 @@ export const DeckCard: React.FC<DeckCardProps> = ({
   return (
     <>
       <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "copy";
+          setIsDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragOver(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragOver(false);
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const files = Array.from(e.dataTransfer.files);
+            onBatchDropFiles(config.id, files);
+          }
+        }}
         className={`group relative flex flex-col justify-between p-2.5 rounded-xl border transition-colors duration-100 select-none overflow-hidden ${
           colorStyle.border
         } ${colorStyle.bg} ${
+          isDragOver
+            ? "ring-2 ring-emerald-500 scale-[1.01] bg-emerald-950/30"
+            : ""
+        } ${
           isPlaying
             ? "ring-2 ring-emerald-500 shadow-lg shadow-emerald-950/50 bg-slate-900/90"
             : "hover:bg-slate-900/80"
