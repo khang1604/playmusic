@@ -10,9 +10,11 @@ import {
   Layers,
   Radio,
   SlidersHorizontal,
-  RotateCcw
+  RotateCcw,
+  ArrowUpDown
 } from "lucide-react";
 import { audioEngine } from "../../features/audio/audioEngine";
+import { PlaylistPanel, type PlaylistPanelProps } from "./PlaylistPanel";
 
 interface MasterConsoleProps {
   masterVolume: number;
@@ -29,7 +31,9 @@ interface MasterConsoleProps {
   onTriggerLoadPreset?: () => Promise<boolean>;
   onBatchAudioFiles: (files: File[]) => void;
   onAddSlot: () => void;
+  onSortByKeymap: () => void;
   onResetAll: () => void;
+  playlistProps: PlaylistPanelProps;
 }
 
 const TOTAL_SEGMENTS = 14;
@@ -58,7 +62,9 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
   onTriggerLoadPreset,
   onBatchAudioFiles,
   onAddSlot,
-  onResetAll
+  onSortByKeymap,
+  onResetAll,
+  playlistProps
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchAudioInputRef = useRef<HTMLInputElement>(null);
@@ -222,7 +228,7 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
   };
 
   return (
-    <aside className="master-console-aside w-72 bg-slate-950 border-l border-slate-800/90 flex flex-col justify-between p-3.5 shadow-2xl select-none flex-shrink-0 overflow-y-auto">
+    <aside className="master-console-aside w-72 bg-slate-950 border-l border-slate-800/90 flex flex-col justify-between gap-3 p-3.5 shadow-2xl select-none flex-shrink-0 overflow-y-auto">
       {/* Top Group: Status & Playback Mode */}
       <div className="top-group space-y-3.5">
         {/* Active Playing Badge */}
@@ -427,10 +433,24 @@ export const MasterConsole: React.FC<MasterConsoleProps> = ({
             <span className="text-blue-400 font-bold">↓</span>
           </div>
         </div>
+
+        {/* Playlist Auto-Next Player Card */}
+        <PlaylistPanel {...playlistProps} />
       </div>
 
       {/* Action Tools & Bottom Panic Stop */}
       <div className="bottom-group space-y-2.5 pt-3 border-t border-slate-800/80">
+        {/* Sort Slots by Keypress Button */}
+        <button
+          type="button"
+          onClick={onSortByKeymap}
+          title="Sắp xếp lại vị trí các ô nhạc theo thứ tự phím tắt (1 → 9 → 0 → Q → P...)"
+          className="bottom-action-btn w-full flex items-center justify-center gap-2 px-3 py-3 bg-violet-600/20 hover:bg-violet-600/30 text-violet-200 border border-violet-500/40 rounded-xl text-xs font-bold shadow-sm transition-all active:scale-98 cursor-pointer min-h-[46px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400"
+        >
+          <ArrowUpDown className="w-4 h-4 text-violet-400" />
+          <span>Sắp xếp theo phím tắt</span>
+        </button>
+
         {/* Add Slot Button */}
         <button
           onClick={onAddSlot}

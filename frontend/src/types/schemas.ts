@@ -47,7 +47,9 @@ export const EventPresetSchema = z.object({
   slots: z.array(DeckSlotSchema),
   masterVolume: z.number().default(1.0),
   fadeDurationMs: z.number().default(1000),
-  exclusiveMode: z.boolean().default(false)
+  exclusiveMode: z.boolean().default(false),
+  playlistSlotIds: z.array(z.number().int().min(1)).optional().default([]),
+  playlistLoop: z.boolean().optional().default(true)
 });
 
 export type EventPreset = z.infer<typeof EventPresetSchema>;

@@ -112,6 +112,10 @@ body {
     padding: 0.5rem 0.375rem !important;
   }
 
+  .master-console-aside .playlist-card {
+    padding: 0.5rem !important;
+  }
+
   .master-console-aside .fader-shortcut-hint {
     margin-top: 0.25rem !important;
   }

@@ -23,6 +23,7 @@ class AudioEngine {
   private analyserRight: AnalyserNode | null = null;
   private exclusiveMode: boolean = false;
   private channels: Map<number, Channel> = new Map();
+  private trackEndedListeners: Set<(slotId: number) => void> = new Set();
   private tickerId: number | null = null;
   private dataL: Uint8Array<ArrayBuffer> | null = null;
   private dataR: Uint8Array<ArrayBuffer> | null = null;
@@ -156,6 +157,7 @@ class AudioEngine {
     // Disconnect old source if exists
     if (channel.source) {
       try {
+        channel.source.onended = null;
         channel.source.stop();
         channel.source.disconnect();
       } catch {
@@ -180,11 +182,13 @@ class AudioEngine {
     const duration = channel.buffer.duration;
 
     source.onended = () => {
-      if (channel.status === "playing" && !channel.isLooping) {
+      if (channel.source === source && channel.status === "playing" && !channel.isLooping) {
+        channel.source = null;
         channel.status = "idle";
         channel.pausedAt = channel.cueInSeconds;
         this.notify(channel);
         this.checkStopTicker();
+        this.emitTrackEnded(slotId);
       }
     };
 
@@ -203,6 +207,9 @@ class AudioEngine {
     const channel = this.getChannel(slotId);
     if (channel.status !== "playing" || !channel.source) return;
 
+    const activeSource = channel.source;
+    activeSource.onended = null;
+
     const elapsed = ctx.currentTime - channel.startedAt;
     channel.pausedAt = channel.buffer ? elapsed % channel.buffer.duration : elapsed;
 
@@ -212,18 +219,22 @@ class AudioEngine {
       channel.gainNode.gain.linearRampToValueAtTime(0.001, now + fadeMs / 1000);
       setTimeout(() => {
         try {
-          channel.source?.stop();
-          channel.source?.disconnect();
+          activeSource.stop();
+          activeSource.disconnect();
         } catch { /* ignored */ }
-        channel.status = "paused";
-        this.notify(channel);
-        this.checkStopTicker();
+        if (channel.source === activeSource) {
+          channel.source = null;
+          channel.status = "paused";
+          this.notify(channel);
+          this.checkStopTicker();
+        }
       }, fadeMs);
     } else {
       try {
-        channel.source.stop();
-        channel.source.disconnect();
+        activeSource.stop();
+        activeSource.disconnect();
       } catch { /* ignored */ }
+      channel.source = null;
       channel.status = "paused";
       this.notify(channel);
       this.checkStopTicker();
@@ -240,26 +251,33 @@ class AudioEngine {
       return;
     }
 
+    const activeSource = channel.source;
+    activeSource.onended = null;
+
     if (fadeMs > 0 && channel.status === "playing") {
       const now = ctx.currentTime;
       channel.gainNode.gain.setValueAtTime(channel.gainNode.gain.value, now);
       channel.gainNode.gain.linearRampToValueAtTime(0.001, now + fadeMs / 1000);
       setTimeout(() => {
         try {
-          channel.source?.stop();
-          channel.source?.disconnect();
+          activeSource.stop();
+          activeSource.disconnect();
         } catch { /* ignored */ }
-        channel.status = "idle";
-        channel.pausedAt = channel.cueInSeconds;
-        this.updateGain(channel);
-        this.notify(channel);
-        this.checkStopTicker();
+        if (channel.source === activeSource) {
+          channel.source = null;
+          channel.status = "idle";
+          channel.pausedAt = channel.cueInSeconds;
+          this.updateGain(channel);
+          this.notify(channel);
+          this.checkStopTicker();
+        }
       }, fadeMs);
     } else {
       try {
-        channel.source.stop();
-        channel.source.disconnect();
+        activeSource.stop();
+        activeSource.disconnect();
       } catch { /* ignored */ }
+      channel.source = null;
       channel.status = "idle";
       channel.pausedAt = channel.cueInSeconds;
       this.updateGain(channel);
@@ -291,10 +309,13 @@ class AudioEngine {
       source.connect(channel.gainNode);
 
       source.onended = () => {
-        if (channel.status === "playing" && !channel.isLooping) {
+        if (channel.source === source && channel.status === "playing" && !channel.isLooping) {
+          channel.source = null;
           channel.status = "idle";
-          channel.pausedAt = 0;
+          channel.pausedAt = channel.cueInSeconds;
           this.notify(channel);
+          this.checkStopTicker();
+          this.emitTrackEnded(slotId);
         }
       };
 
@@ -467,6 +488,17 @@ class AudioEngine {
     };
   }
 
+  public subscribeTrackEnded(callback: (slotId: number) => void) {
+    this.trackEndedListeners.add(callback);
+    return () => {
+      this.trackEndedListeners.delete(callback);
+    };
+  }
+
+  private emitTrackEnded(slotId: number) {
+    this.trackEndedListeners.forEach((fn) => fn(slotId));
+  }
+
   private getRuntimeState(channel: Channel): DeckRuntimeState {
     let currentTime =
       channel.status === "idle" ? channel.cueInSeconds : channel.pausedAt;
@@ -534,6 +566,10 @@ class AudioEngine {
       if (channel.status === "playing") count++;
     }
     return count;
+  }
+
+  public getSlotStatus(slotId: number): PlaybackStatus {
+    return this.channels.get(slotId)?.status || "idle";
   }
 }
 

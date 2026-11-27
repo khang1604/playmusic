@@ -3,6 +3,8 @@ import { UploadCloud, Music, RotateCcw, AlertTriangle } from "lucide-react";
 import { DeckCard } from "./components/deck/DeckCard";
 import { MasterConsole } from "./components/controls/MasterConsole";
 import { audioEngine } from "./features/audio/audioEngine";
+import { usePlaylistController } from "./features/playlist/usePlaylistController";
+import { DEFAULT_KEYMAPS, sortSlotsByKeymap } from "./utils/slotSorting";
 import { logger } from "./utils/logger";
 import {
   saveSlotAudio,
@@ -13,21 +15,6 @@ import {
   base64ToArrayBuffer
 } from "./utils/audioStorage";
 import { EventPresetSchema, type DeckSlotConfig } from "./types";
-
-// Extended 45 keyboard hotkeys (Numbers + Letters first, symbols only when slots > 36)
-const DEFAULT_KEYMAPS = [
-  // Row 1 & 2: Digits 1-0 (10 slots)
-  "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-  // Row 3-7: Standard Letters Q-M (26 slots - zero confusing symbols)
-  "Q", "W", "E", "R", "T",
-  "Y", "U", "I", "O", "P",
-  "A", "S", "D", "F", "G",
-  "H", "J", "K", "L", "Z",
-  "X", "C", "V", "B", "N",
-  "M",
-  // Fallback symbols only if user expands beyond 36 slots
-  "-", "=", "[", "]", ";", "'", ",", ".", "/"
-];
 
 function generateDefaultSlots(count = 20): DeckSlotConfig[] {
   return Array.from({ length: count }, (_, index) => {
@@ -183,6 +170,17 @@ export const App: React.FC = () => {
   const dragCounterRef = useRef(0);
   const relinkAudioInputRef = useRef<HTMLInputElement>(null);
 
+  const playlist = usePlaylistController({
+    slots,
+    fadeDurationMs,
+    exclusiveMode
+  });
+
+  const handleSortByKeymap = useCallback(() => {
+    setSlots((prev) => sortSlotsByKeymap(prev));
+    logger.info("Slots sorted by keymap order");
+  }, []);
+
   // Sync slots to localStorage
   useEffect(() => {
     try {
@@ -310,6 +308,7 @@ export const App: React.FC = () => {
 
   // Delete a slot
   const handleDeleteSlot = async (slotId: number) => {
+    playlist.removeDeletedSlotFromPlaylist(slotId);
     audioEngine.stop(slotId, 0);
     audioEngine.removeChannel(slotId);
     await deleteSlotAudio(slotId);
@@ -325,8 +324,9 @@ export const App: React.FC = () => {
 
   // Emergency Panic Stop All (MOUSE CLICK ONLY)
   const handlePanicStop = useCallback(() => {
+    playlist.disarmPlaylist();
     audioEngine.panicMuteAll(fadeDurationMs);
-  }, [fadeDurationMs]);
+  }, [fadeDurationMs, playlist]);
 
   // Global Keyboard Event Dispatcher
   // Space and Escape keys are strictly removed for stage safety!
@@ -372,6 +372,9 @@ export const App: React.FC = () => {
 
       if (matchedSlot) {
         e.preventDefault();
+        if (audioEngine.getSlotStatus(matchedSlot.id) !== "playing") {
+          playlist.notifyManualSlotTrigger(matchedSlot.id);
+        }
         audioEngine.togglePlayPause(matchedSlot.id, fadeDurationMs);
         logger.debug(`Key '${pressedKey}' triggered slot #${matchedSlot.id}`);
       }
@@ -379,7 +382,7 @@ export const App: React.FC = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [slots, fadeDurationMs, masterVolume]);
+  }, [slots, fadeDurationMs, masterVolume, playlist]);
 
   /**
    * Batch Loads Multiple Audio Files into Slots with AUTO-EXPANSION
@@ -726,7 +729,9 @@ export const App: React.FC = () => {
         slots: packagedSlots,
         masterVolume,
         fadeDurationMs,
-        exclusiveMode
+        exclusiveMode,
+        playlistSlotIds: playlist.playlistSlotIds,
+        playlistLoop: playlist.playlistLoop
       };
 
       const validated = EventPresetSchema.parse(presetData);
@@ -912,6 +917,7 @@ export const App: React.FC = () => {
       setExclusiveMode(parsed.exclusiveMode);
       audioEngine.setExclusiveMode(parsed.exclusiveMode);
       setSlots(parsed.slots);
+      playlist.applyPresetPlaylist(parsed.playlistSlotIds ?? [], parsed.playlistLoop ?? true);
 
       // Update audio engine settings per slot
       parsed.slots.forEach((s) => {
@@ -1132,6 +1138,7 @@ export const App: React.FC = () => {
       // 4. Reset slots to fresh default 20 slots
       const freshSlots = generateDefaultSlots(20);
       setSlots(freshSlots);
+      playlist.resetPlaylistAll();
       setEventName("Show mới");
       setSessionKey((prev) => prev + 1);
       setActiveCount(0);
@@ -1141,6 +1148,21 @@ export const App: React.FC = () => {
       logger.error("Failed to reset show", err);
     }
   };
+
+  const playlistOrderMap = new Map<number, number>(
+    playlist.playlistSlotIds.map((id, idx) => [id, idx + 1])
+  );
+  const slotByIdMap = new Map(slots.map((s) => [s.id, s]));
+  const playlistItems = playlist.playlistSlotIds
+    .map((id) => slotByIdMap.get(id))
+    .filter((s): s is DeckSlotConfig => Boolean(s))
+    .map((s) => ({
+      id: s.id,
+      label: s.label || (s.fileName ? s.fileName.replace(/\.[^/.]+$/, "") : `Slot ${s.id}`),
+      keymap: s.keymap,
+      hasAudio: Boolean(s.fileName)
+    }));
+  const hasAnyLoadedAudio = slots.some((s) => Boolean(s.fileName));
 
   return (
     <div
@@ -1225,6 +1247,13 @@ export const App: React.FC = () => {
                 key={`${sessionKey}-${slot.id}`}
                 config={slot}
                 fadeDurationMs={fadeDurationMs}
+                playlistOrder={playlistOrderMap.get(slot.id) ?? null}
+                isPlaylistCurrent={
+                  playlist.isPlaylistActive && playlist.activePlaylistSlotId === slot.id
+                }
+                onTogglePlaylist={() => playlist.toggleSlotInPlaylist(slot.id)}
+                onTriggerPlay={playlist.notifyManualSlotTrigger}
+                onTriggerStop={playlist.notifyManualSlotStop}
                 onUpdateConfig={(updated) => handleUpdateSlot(slot.id, updated)}
                 onBatchDropFiles={(startId, files) => {
                   const idx = slots.findIndex((s) => s.id === startId);
@@ -1255,7 +1284,27 @@ export const App: React.FC = () => {
             handleBatchLoadFiles(firstEmptyIdx >= 0 ? firstEmptyIdx : 0, files);
           }}
           onAddSlot={handleAddSlot}
+          onSortByKeymap={handleSortByKeymap}
           onResetAll={() => setShowResetModal(true)}
+          playlistProps={{
+            items: playlistItems,
+            hasAnyLoadedAudio,
+            isPlaylistActive: playlist.isPlaylistActive,
+            isCurrentPlaying: playlist.isCurrentPlaying,
+            activePlaylistSlotId: playlist.activePlaylistSlotId,
+            playlistLoop: playlist.playlistLoop,
+            onTogglePlayPause: playlist.togglePlaylistPlayPause,
+            onPrev: playlist.playPrev,
+            onNext: playlist.playNext,
+            onStopPlaylist: playlist.stopPlaylist,
+            onToggleLoop: () => playlist.setPlaylistLoop(!playlist.playlistLoop),
+            onSelectSlot: playlist.selectAndPlaySlot,
+            onMoveSlot: playlist.moveSlotInPlaylist,
+            onRemoveSlot: playlist.toggleSlotInPlaylist,
+            onSyncByKeymapOrder: playlist.syncPlaylistByKeymapOrder,
+            onAddAllLoadedSlots: playlist.addAllLoadedSlots,
+            onClearPlaylist: playlist.clearPlaylist
+          }}
         />
       </div>
 

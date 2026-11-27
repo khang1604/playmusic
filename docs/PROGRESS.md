@@ -1,11 +1,22 @@
 # PLAYMUSIC - PROJECT PROGRESS & MILESTONES
 
-### Session Status [2026-11-22]
-- **Task:** Release v1.0.18 - Master Console Responsive Optimization & Smooth Wheel Scroll | **State:** Released
+### Session Status [2026-11-27]
+- **Task:** Release v2.0.0 - Playlist Auto-Next Queue & Keypress Slot Sorting | **State:** Released
 - **Active Directory:** `C:\Project\playmusic`
 - **Target OS:** Ubuntu 24.04 / 26.04 LTS & Windows 10/11 (Tauri v2)
 
 ### Milestones & Deliverables
+- [x] **Release v2.0.0 Published:**
+  - Bumped version to `2.0.0` across `package.json`, `frontend/package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `README.md`.
+  - Pushed git tag `v2.0.0` to trigger GitHub Actions CI/CD release workflow (`.github/workflows/release.yml`).
+- [x] **Sort Slots by Keypress (`slotSorting.ts`):**
+  - Added non-destructive slot sorting following physical keyboard sequence (`1-9 -> 0 -> Q-P -> A-L -> Z-M`), custom keys alphabetically, empty keys last, preserving internal `slot.id` and loaded `AudioBuffer`s.
+  - Added dedicated `"Sắp xếp theo phím tắt"` trigger button in `MasterConsole`.
+- [x] **Playlist Auto-Next Player (`usePlaylistController.ts` & `PlaylistPanel.tsx`):**
+  - Added per-card Playlist toggle button (`ListPlus` / `ListChecks`) and `PL#n` queue order badge in `DeckCard.tsx`.
+  - Added compact `PlaylistPanel` card in `MasterConsole.tsx` with transport (`Prev`, `Play/Pause`, `Next`, `Stop`), `Loop Playlist` toggle, `"Thêm tất cả"`, `"Theo phím"`, `"Xóa"`, and reorderable queue items (`↑`/`↓`/`×`).
+  - Hardened `audioEngine.ts` with `subscribeTrackEnded` and `activeSource` identity guards so fade-out/manual stops never falsely emit track-end events.
+  - Added stage safety: Exclusive mode external cue triggers or Panic Stop automatically disarm Auto-Next; persisted `playlistSlotIds` and `playlistLoop` in `EventPresetSchema` and `localStorage`.
 - [x] **Release v1.0.18 Published:**
   - Bumped version to `1.0.18` across `package.json`, `frontend/package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `README.md`.
   - Pushed git tag `v1.0.18` to trigger GitHub Actions CI/CD release workflow (`.github/workflows/release.yml`).

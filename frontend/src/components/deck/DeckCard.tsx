@@ -6,7 +6,9 @@ import {
   Repeat,
   Upload,
   Clock,
-  Settings
+  Settings,
+  ListPlus,
+  ListChecks
 } from "lucide-react";
 import { audioEngine } from "../../features/audio/audioEngine";
 import { EditSlotModal } from "../modals/EditSlotModal";
@@ -77,6 +79,11 @@ const COLOR_CLASSES: Record<
 interface DeckCardProps {
   config: DeckSlotConfig;
   fadeDurationMs: number;
+  playlistOrder?: number | null;
+  isPlaylistCurrent?: boolean;
+  onTogglePlaylist?: () => void;
+  onTriggerPlay?: (slotId: number) => void;
+  onTriggerStop?: (slotId: number) => void;
   onUpdateConfig: (updated: Partial<DeckSlotConfig>) => void;
   onBatchDropFiles: (startSlotId: number, files: File[]) => void;
   onDeleteSlot?: (slotId: number) => void;
@@ -85,6 +92,11 @@ interface DeckCardProps {
 export const DeckCard: React.FC<DeckCardProps> = ({
   config,
   fadeDurationMs,
+  playlistOrder = null,
+  isPlaylistCurrent = false,
+  onTogglePlaylist,
+  onTriggerPlay,
+  onTriggerStop,
   onUpdateConfig,
   onBatchDropFiles,
   onDeleteSlot
@@ -195,10 +207,14 @@ export const DeckCard: React.FC<DeckCardProps> = ({
   };
 
   const togglePlay = () => {
+    if (runtime.status !== "playing") {
+      onTriggerPlay?.(config.id);
+    }
     audioEngine.togglePlayPause(config.id, fadeDurationMs);
   };
 
   const handleStop = () => {
+    onTriggerStop?.(config.id);
     audioEngine.stop(config.id, fadeDurationMs);
   };
 
@@ -284,18 +300,63 @@ export const DeckCard: React.FC<DeckCardProps> = ({
           />
         )}
 
-        {/* Top Header Row: Slot ID Badge on Left, Loop & Settings on Right (+20% size for clear visibility) */}
+        {/* Top Header Row: Slot ID Badge on Left, Playlist, Loop & Settings on Right */}
         <div className="relative z-10 flex items-center justify-between gap-1.5 mb-1.5">
-          {/* Slot ID Badge */}
-          <span
-            className={`px-2.5 py-1 rounded-md text-xs font-black font-mono tracking-wider uppercase shadow-sm flex items-center ${colorStyle.badge}`}
-            title={`Slot #${config.id}`}
-          >
-            <span>#{config.id}</span>
-          </span>
+          {/* Slot ID Badge & Playlist Queue Order */}
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`px-2.5 py-1 rounded-md text-xs font-black font-mono tracking-wider uppercase shadow-sm flex items-center ${colorStyle.badge}`}
+              title={`Slot #${config.id}`}
+            >
+              <span>#{config.id}</span>
+            </span>
+            {playlistOrder !== null && (
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold tracking-tight border ${
+                  isPlaylistCurrent
+                    ? "bg-emerald-500 text-black border-emerald-300 shadow-sm"
+                    : "bg-indigo-950/90 text-indigo-300 border-indigo-500/50"
+                }`}
+                title={`Vị trí #${playlistOrder} trong Playlist phát nối tiếp`}
+              >
+                PL#{playlistOrder}
+              </span>
+            )}
+          </div>
 
-          {/* Action Icons (Loop & Settings) */}
+          {/* Action Icons (Playlist, Loop & Settings) */}
           <div className="flex items-center gap-1">
+            {onTogglePlaylist && (
+              <button
+                type="button"
+                onClick={onTogglePlaylist}
+                disabled={!config.fileName && playlistOrder === null}
+                aria-label={
+                  playlistOrder !== null
+                    ? `Gỡ ô #${config.id} khỏi Playlist`
+                    : `Thêm ô #${config.id} vào Playlist`
+                }
+                title={
+                  !config.fileName && playlistOrder === null
+                    ? "Nạp file nhạc trước khi thêm vào Playlist"
+                    : playlistOrder !== null
+                    ? `Đang ở vị trí #${playlistOrder} trong Playlist (Click để gỡ)`
+                    : "Thêm bài này vào Playlist phát nối tiếp"
+                }
+                className={`p-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center disabled:opacity-25 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
+                  playlistOrder !== null
+                    ? "bg-indigo-950 text-indigo-300 ring-1 ring-indigo-500"
+                    : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
+                }`}
+              >
+                {playlistOrder !== null ? (
+                  <ListChecks className="w-4 h-4" />
+                ) : (
+                  <ListPlus className="w-4 h-4" />
+                )}
+              </button>
+            )}
+
             {/* Loop Toggle Button */}
             <button
               onClick={toggleLoop}
